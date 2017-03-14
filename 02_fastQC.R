@@ -1,7 +1,7 @@
 # File: 02_fastQC.R
 # Auth: umar.niazi@kcl.ac.uk
 # DESC: quality checks on the fastq files before trimming
-# Date: 16/01/2017
+# Date: 14/03/2017
 
 
 ## set variables and source libraries
