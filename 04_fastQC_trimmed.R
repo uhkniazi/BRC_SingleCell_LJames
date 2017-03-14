@@ -65,9 +65,9 @@ lOb = lapply(ivFilesIndex, function(x){
 })
 
 setwd(gcswd)
-n = make.names(paste('CFastqQuality joana single cell rds'))
+n = make.names(paste('CFastqQuality joana single cell trimmed rds'))
 lOb$meta = dfSample
-lOb$desc = paste('CFastqQuality object from joana single cell sequencing project', date())
+lOb$desc = paste('CFastqQuality object from joana single cell sequencing project after trimming', date())
 n2 = paste0('~/Data/MetaData/', n)
 save(lOb, file=n2)
 
@@ -76,7 +76,7 @@ save(lOb, file=n2)
 # db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
 # dbListTables(db)
 # dbListFields(db, 'MetaFile')
-# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/', comment='joana single cell sequencing project FASTQ file quality data')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/', comment='joana single cell sequencing project FASTQ file quality data after trimming with trimmomatic')
 # dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
 # dbDisconnect(db)
 
@@ -84,12 +84,12 @@ save(lOb, file=n2)
 getwd()
 lOb$desc = NULL
 lOb$meta = NULL
-pdf(file='Results/qa.fastq.pdf')
+pdf(file='Results/qa.fastq.trimmed.pdf')
 
 iReadCount = sapply(lOb, CFastqQuality.getReadCount)
 iReadCount = iReadCount/1e+6
 
-barplot(iReadCount, las=2, main='Pre-Trim Read Count', ylab = 'No. of Reads in Millions', cex.names =0.25, col=grey.colors(2))
+barplot(iReadCount, las=2, main='Post-Trim Read Count', ylab = 'No. of Reads in Millions', cex.names =0.25, col=grey.colors(2))
 
 mQuality = sapply(lOb, function(x){
   m = mGetReadQualityByCycle(x)
@@ -97,15 +97,15 @@ mQuality = sapply(lOb, function(x){
   return(m)
 })
 
-matplot(mQuality, type='l', main='Pre-trim base quality', ylab = 'Mean Score', xlab='Position in Read')
+matplot(mQuality, type='l', main='Post-Trim base quality', ylab = 'Mean Score', xlab='Position in Read')
 
 lReadWidth = lapply(lOb, iGetReadWidth)
-boxplot(lReadWidth, las=2, main='Pre-trim Read Width', ylab = 'Read Width', col=grey.colors(2), outline=F, xaxt='n')
+boxplot(lReadWidth, las=2, main='Post-Trim Read Width', ylab = 'Read Width', col=grey.colors(2), outline=F, xaxt='n')
 axis(1, at=1:length(lReadWidth), labels = names(lReadWidth), cex.axis=0.25, las=2)
 
 ## some samples may have quality drops which can be seen by clustering
 hc = hclust(dist(t(mQuality)))
-plot(hc, main='Clustering of Pre-trim data based on Per base quality', cex=0.25, xlab='', sub='')
+plot(hc, main='Clustering of Post-Trim data based on Per base quality', cex=0.25, xlab='', sub='')
 abline(h = 15, col=2)
 
 ## colour by label groups
@@ -128,7 +128,7 @@ dend = as.dendrogram(hc)
 labels_colors(dend) = iCol[as.numeric(g1)][order.dendrogram(dend)]
 labels_cex(dend) = 0.25
 # Plotting the new dendrogram
-plot(dend, main='Clustering of Pre-trim data based on Per base quality', xlab='', sub='Coloured on Patients')
+plot(dend, main='Clustering of Post-Trim data based on Per base quality', xlab='', sub='Coloured on Patients')
 
 g1 = factor(df$g3)
 iCol = c('black', 'red'); #rainbow(nlevels(g1))
@@ -140,7 +140,7 @@ dend = as.dendrogram(hc)
 labels_colors(dend) = iCol[as.numeric(g1)][order.dendrogram(dend)]
 labels_cex(dend) = 0.25
 # Plotting the new dendrogram
-plot(dend, main='Clustering of Pre-trim data based on Per base quality', xlab='', sub='Duplicated capture sites')
+plot(dend, main='Clustering of Post-Trim data based on Per base quality', xlab='', sub='Duplicated capture sites')
 
 ## unique colours for matching plates
 fLab = as.character(df$fLab)
@@ -160,7 +160,7 @@ dend = as.dendrogram(hc)
 labels_colors(dend) = iCol[as.numeric(g1)][order.dendrogram(dend)]
 labels_cex(dend) = 0.25
 # Plotting the new dendrogram
-plot(dend, main='Clustering of Pre-trim data based on Per base quality', xlab='', sub='Duplicated capture sites')
+plot(dend, main='Clustering of Post-Trim data based on Per base quality', xlab='', sub='Duplicated capture sites')
 
 ####################
 # ## A sub tree - so we can see better what we got:
@@ -172,8 +172,8 @@ table(c)
 # draw for each of the clusters
 sapply(unique(c), function(x){
   m = mQuality[,c == x]
-  matplot(m, type='l', main='Pre-trim Per base quality Clusters', ylab = 'Mean Score', xlab='Position in Read', col=1:ncol(m))
-  legend('bottomleft', legend = c(colnames(m)), fill = 1:ncol(m), ncol=4, cex=0.7)
+  matplot(m, type='l', main='Post-Trim Per base quality Clusters', ylab = 'Mean Score', xlab='Position in Read', col=1:ncol(m))
+  legend('bottomleft', legend = c(colnames(m)), fill = 1:ncol(m), ncol=8, cex=0.6)
 })
 dev.off(dev.cur())
 
