@@ -152,6 +152,8 @@ text(pr.out$x[,1:2], labels = dfSample.names$title, pos = 1, cex=0.6)
 legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.8)
 plot(pr.out$sdev)
 
+f_Plot3DPCA(pr.out$x, col, pch=20)
+
 # classify cells into cell cycle phases based on the gene expression data
 mm.pairs = readRDS(system.file("exdata", "human_cycle_markers.rds", package="scran"))
 library(org.Hs.eg.db)
@@ -259,7 +261,7 @@ plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
      main='PCA comp 1 and 2, not normalized')
 text(pr.out$x[,1:2], labels = dfSample.names$title, pos = 1, cex=0.6)
 legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.8)
-
+f_Plot3DPCA(pr.out$x, col=col, pch=19)
 ########### normalization
 # we pool counts from many cells to increase the count size for accurate size factor estimation 
 # Pool-based size factors are then “deconvolved” into cell-based factors for cell-specific normalization.
@@ -317,6 +319,7 @@ plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
      main='PCA comp 1 and 2, normalized without spike-in')
 text(pr.out$x[,1:2], labels = dfSample.names$title, pos = 1, cex=0.6)
 legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.8)
+f_Plot3DPCA(pr.out$x, col, pch=19)
 plot(pr.out$sdev)
 
 fSamples = factor(dfSample.names$Phase)
@@ -351,6 +354,8 @@ plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
      main='PCA comp 1 and 2, normalized with spike-in')
 text(pr.out$x[,1:2], labels = dfSample.names$title, pos = 1, cex=0.6)
 legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.8)
+f_Plot3DPCA(pr.out$x, col, pch=19)
+
 plot(pr.out$sdev)
 
 fSamples = factor(dfSample.names$Phase)
@@ -364,34 +369,22 @@ legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fS
 
 ############## some additional QC checks with distribution of gene expressions
 # get the mean vector and total vector for each sample
-mCounts.s = exprs(oSce.bk)
+mCounts.s = exprs(oSce.T)
 ivMean = colMeans(mCounts.s)
 ivTotal = colSums(mCounts.s)
 
-dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$Phase)
+dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$group1)
 library(lattice)
 
 densityplot(~ ivMean, data=dfData, groups=condition, auto.key=TRUE, main='Average Gene Expression Density in Each Phenotype',
             xlab='Mean Gene Expression')
 
-## for normalized data
-# adding some noise to remove zeros
-n = dim(mCounts)[1] * dim(mCounts)[2]
-# adding noise to avoid negative numbers
-mCounts.s = mCounts.norm + rnorm(n)
-
-# get the mean vector and total vector for each sample
-ivMean = colMeans(mCounts.s)
-ivTotal = colSums(mCounts.s)
+dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
+        xlab='Groups', ylab='Mean Expression', pch=20, cex.axis=0.7)
 
 dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$phenotype)
-
-densityplot(~ ivMean , data=dfData, groups=condition, auto.key=TRUE, main='Average Gene Expression Density in Each Phenotype, Normalised',
-            xlab='Mean Gene Expression')
-
 dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
-        xlab='Mean Gene Expression', pch=20, cex.axis=0.7)
-
+        xlab='Groups', ylab='Mean Expression', pch=20, scales=list(x=list(cex=0.5, rot=45)))
 
 
 
