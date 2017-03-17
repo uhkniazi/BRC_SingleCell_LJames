@@ -64,7 +64,6 @@ dfSample.names = dfSample.names[-i,]
 # sanity check
 identical(dfSample.names$title, colnames(mCounts))
 
-
 ##################################### single cell sequencing workflow
 ## see here for a working example https://www.bioconductor.org/help/workflows/simpleSingleCell/
 library(scater)
@@ -116,6 +115,66 @@ data.frame(ByLibSize=sum(bDropLibsize), ByFeature=sum(bDropFeature),
 # Samples         1         0      9        57
 
 par(p.old)
+
+######### correlation b/w spike-in mix and ercc alignment
+mCounts = counts(oSce)
+dim(mCounts)
+dfERCC = read.csv('~/Data/MetaData/ERCC_concentrations.csv', header=T, sep='\t', stringsAsFactors = F)
+i2 = grepl(pattern = '^ERCC', rownames(mCounts))
+table(i2)
+mCounts = mCounts[i2,]
+# order the matrix in the same order as the ERCC names in the dataframe
+i = match(dfERCC$ERCC_ID, rownames(mCounts))
+mCounts = mCounts[i,]
+# sanity check
+identical(rownames(mCounts), dfERCC$ERCC_ID)
+
+x = dfERCC$Mix_1
+pdf('Temp/mix1.pdf')
+par(mfrow=c(3, 3))
+sapply(1:ncol(mCounts), function(cn){
+  cn = colnames(mCounts)[cn]
+  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 1', ylab='Log Aligned')
+  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+})
+dev.off(dev.cur())
+
+x = dfERCC$Mix_2
+pdf('Temp/mix2.pdf')
+par(mfrow=c(3, 3))
+sapply(1:ncol(mCounts), function(cn){
+  cn = colnames(mCounts)[cn]
+  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 2', ylab='Log Aligned')
+  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+})
+dev.off(dev.cur())
+
+### choose ERCCs subset that have a reasonable number of reads aligned
+m = rowMeans(mCounts)
+i = which(m > 10)
+mCounts = mCounts[i,]
+dfERCC = dfERCC[i,]
+
+x = dfERCC$Mix_1
+pdf('Temp/mix1.pdf')
+par(mfrow=c(3, 3))
+sapply(1:ncol(mCounts), function(cn){
+  cn = colnames(mCounts)[cn]
+  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 1', ylab='Log Aligned')
+  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+})
+dev.off(dev.cur())
+
+x = dfERCC$Mix_2
+pdf('Temp/mix2.pdf')
+par(mfrow=c(3, 3))
+sapply(1:ncol(mCounts), function(cn){
+  cn = colnames(mCounts)[cn]
+  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 2', ylab='Log Aligned')
+  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+})
+dev.off(dev.cur())
+
 # perform a principal components analysis (PCA) based on the quality metrics for each cell
 # drop the samples from the main annotation data.frame
 i = match(colnames(oSce), dfSample.names$title)
@@ -367,6 +426,42 @@ plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
 text(pr.out$x[,1:2], labels = dfSample.names$title, pos = 1, cex=0.6)
 legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.8)
 
+#################################################
+### ERCC correlation check after normalization
+mCounts = exprs(oSce.T)
+dim(mCounts)
+dfERCC = read.csv('~/Data/MetaData/ERCC_concentrations.csv', header=T, sep='\t', stringsAsFactors = F)
+i2 = grepl(pattern = '^ERCC', rownames(mCounts))
+table(i2)
+mCounts = mCounts[i2,]
+dfERCC = dfERCC[dfERCC$ERCC_ID %in% rownames(mCounts),]
+# order the matrix in the same order as the ERCC names in the dataframe
+i = match(dfERCC$ERCC_ID, rownames(mCounts))
+mCounts = mCounts[i,]
+# sanity check
+identical(rownames(mCounts), dfERCC$ERCC_ID)
+
+x = dfERCC$Mix_1
+pdf('Temp/mix1_norm.pdf')
+par(mfrow=c(3, 3))
+sapply(1:ncol(mCounts), function(cn){
+  cn = colnames(mCounts)[cn]
+  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 1', ylab='Log Aligned')
+  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+})
+dev.off(dev.cur())
+
+x = dfERCC$Mix_2
+pdf('Temp/mix2_norm.pdf')
+par(mfrow=c(3, 3))
+sapply(1:ncol(mCounts), function(cn){
+  cn = colnames(mCounts)[cn]
+  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 2', ylab='Log Aligned')
+  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+})
+dev.off(dev.cur())
+
+
 ############## some additional QC checks with distribution of gene expressions
 # get the mean vector and total vector for each sample
 mCounts.s = exprs(oSce.T)
@@ -386,7 +481,27 @@ dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$phenotype)
 dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
         xlab='Groups', ylab='Mean Expression', pch=20, scales=list(x=list(cex=0.5, rot=45)))
 
+#########################
+i = which(ivMean > 1.4)
+dfData[i,]
 
+## get count matrix
+mCounts = counts(oSce.T)
+
+i2 = grepl(pattern = '^ERCC', rownames(mCounts))
+table(i2)
+m1 = mCounts[i2,]
+m2 = mCounts[!i2,]
+m1 = colSums(m1)
+m2 = colSums(m2)
+mCounts = rbind(m1, m2)
+rownames(mCounts) = c('ERCC', 'Genes')
+fSamples = factor(dfSample.names$group1)
+col.p = rainbow(length(unique(fSamples)))
+col = col.p[as.numeric(fSamples)]
+
+plot(t(mCounts), pch=20, main='Reads aligned to genes vs Spike-in', col=col)
+text(t(mCounts), labels = colnames(mCounts), pos = 1, cex=0.6)
 
 
 ############################################################################################################
