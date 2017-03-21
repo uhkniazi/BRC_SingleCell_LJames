@@ -243,6 +243,7 @@ plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
      main='PCA comp 1 and 2, not normalized')
 text(pr.out$x[,1:2], labels = dfSample.names$title, pos = 1, cex=0.6)
 legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.8)
+f_Plot3DPCA(pr.out$x, col, pch=20)
 
 
 # low-abundance genes are defined as those with an average count below a filter threshold of 1
@@ -354,6 +355,16 @@ oSce.T = computeSpikeFactors(oSce, type='ERCC', general.use=T)
 # and are log-transformed
 oSce.F = normalize(oSce.F)
 oSce.T = normalize(oSce.T)
+
+## how is the correlation b/w spike-in and gene based size factors
+fSamples = factor(dfSample.names$group1)
+col.p = rainbow(length(unique(fSamples)))
+col = col.p[as.numeric(fSamples)]
+
+plot(pData(oSce.F)$size_factor, pData(oSce.F)$size_factor_ERCC, pch=20, xlab='Gene based size factor', col=col,
+     ylab='ERCC size factor', main='Comparisons of two size factors')
+text(pData(oSce.F)$size_factor, pData(oSce.F)$size_factor_ERCC, labels = dfSample.names$title, pos = 1, cex=0.6)
+lines(lowess(pData(oSce.F)$size_factor, pData(oSce.F)$size_factor_ERCC), lwd=2)
 
 ## PCA on normalized data without spike-in 
 mCounts = exprs(oSce.F)
@@ -474,6 +485,28 @@ library(lattice)
 densityplot(~ ivMean, data=dfData, groups=condition, auto.key=TRUE, main='Average Gene Expression Density in Each Phenotype',
             xlab='Mean Gene Expression')
 
+dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, SPIKE-IN Normalised',
+        xlab='Groups', ylab='Mean Expression', pch=20, cex.axis=0.7)
+
+dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$phenotype)
+dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, SPIKE-IN Normalised',
+        xlab='Groups', ylab='Mean Expression', pch=20, scales=list(x=list(cex=0.5, rot=45)))
+
+#########################
+i = which(ivMean > 1.4)
+dfData[i,]
+
+## repeat with gene normalized data
+mCounts.s = exprs(oSce.F)
+ivMean = colMeans(mCounts.s)
+ivTotal = colSums(mCounts.s)
+
+dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$group1)
+library(lattice)
+
+densityplot(~ ivMean, data=dfData, groups=condition, auto.key=TRUE, main='Average Gene Expression Density in Each Phenotype',
+            xlab='Mean Gene Expression')
+
 dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
         xlab='Groups', ylab='Mean Expression', pch=20, cex.axis=0.7)
 
@@ -502,6 +535,15 @@ col = col.p[as.numeric(fSamples)]
 
 plot(t(mCounts), pch=20, main='Reads aligned to genes vs Spike-in', col=col)
 text(t(mCounts), labels = colnames(mCounts), pos = 1, cex=0.6)
+
+cs = colSums(mCounts)
+mCounts = sweep(mCounts, 2, cs, '/')
+i = which(mCounts['ERCC',] < 0.041)
+
+b = barplot((mCounts), xaxt='n', main='Proportion of reads aligned to ERCC (Black) and Genes (Grey)')
+axis(1, at = b[-i], labels=colnames(mCounts)[-i], tick = F, las=2, cex.axis=0.6)
+axis(1, at = b[i], labels=colnames(mCounts)[i], tick = F, las=2, cex.axis=0.6, col.axis='red')
+
 
 
 ############################################################################################################
