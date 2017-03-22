@@ -511,13 +511,56 @@ dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expre
         xlab='Groups', ylab='Mean Expression', pch=20, cex.axis=0.7)
 
 dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$phenotype)
+c = c('black', 'red')
+c = c[as.numeric(factor(dfSample.names$group1))]
 dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
-        xlab='Groups', ylab='Mean Expression', pch=20, scales=list(x=list(cex=0.5, rot=45)))
+        xlab='Groups', ylab='Mean Expression', pch=20, col=c, scales=list(x=list(cex=0.8, rot=45)))
 
 #########################
 i = which(ivMean > 1.4)
 dfData[i,]
 
+### samples that share the same capture site
+m = as.matrix(xtabs( ~ group1 + phenotype, data=dfSample.names))
+m = colSums(m)
+i = which(m > 1)
+i2 = which(dfSample.names$phenotype %in% names(i))
+
+## PCA on this data but colour by capture sites that are shared
+mCounts = exprs(oSce.F)
+# n = dim(mCounts)[1] * dim(mCounts)[2]
+# mCounts = mCounts + rnorm(n)
+
+#### standardize samples first
+s = apply(mCounts, 2, sd)
+mCounts.s = sweep(mCounts, 2, s, '/')
+
+## PCA with strandardizing samples
+mCounts.s = t(mCounts.s)
+# set scaling to FALSE to scale variables i.e. genes in columns
+pr.out = prcomp(mCounts.s, scale = F)
+
+# set the factor for colours
+## unique colours for matching plates
+fLab = as.character(dfSample.names$phenotype)
+i = which(as.numeric(table(fLab)) == 2)
+n = names(table(fLab))[i]
+## these particular names shoud be set to the same level as they are not duplicated
+fLab[!fLab %in% n] = 'C00'
+
+g1 = factor(fLab)
+iCol = rainbow(nlevels(g1))
+iCol[1] = 'lightgrey'
+col = iCol[as.numeric(g1)]
+
+plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
+     main='PCA comp 1 and 2, Coloured on Shared Capture Sites')
+text(pr.out$x[i2,1:2], labels = dfSample.names$title[i2], pos = 1, cex=0.8)
+
+
+
+
+###### association between proportion of reads aligned to ERCC vs Genes
 ## get count matrix
 mCounts = counts(oSce.T)
 
