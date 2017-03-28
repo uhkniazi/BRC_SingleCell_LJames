@@ -77,11 +77,60 @@ n2 = paste0('~/Data/MetaData/', n)
 save(lCounts, file=n2)
 
 ## comment out after first time execution
-library('RMySQL')
-db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
-dbListTables(db)
-dbListFields(db, 'MetaFile')
-df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
-                comment='list of Count matrix from louisa single cell sequencing run with quality 10 duplicates removed and strict settings on trimmomatic')
-dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-dbDisconnect(db)
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='list of Count matrix from louisa single cell sequencing run with quality 10 duplicates removed and strict settings on trimmomatic')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
+
+names(lCounts)
+mCounts = do.call(cbind, lCounts)
+i = which(rowMeans(mCounts) > 100)
+
+# select transcripts with coverage
+oGRLgenes = exonsBy(TxDb.Hsapiens.UCSC.hg38.knownGene, by = 'gene')
+i = i[names(i) %in% names(oGRLgenes)]
+oGRLgenes = oGRLgenes[names(i)]
+
+# ### take a sample of exons/transcripts
+# oGRLgenes = exonsBy(TxDb.Hsapiens.UCSC.hg38.knownGene, by = 'tx')
+# ## select transcripts with length close to  mean
+# oGRLgenes = oGRLgenes[sample(1:length(oGRLgenes), 1000, replace = F)]
+# length(oGRLgenes)
+
+getTranscriptCoverage = function(bam){
+  ###
+  f_bin_vector = function(start, end, bins){
+    s = floor(seq(start, end, length.out=bins+1))
+    e = s-1
+    e[length(e)] = s[length(s)]
+    length(s) = length(s)-1
+    e = e[2:length(e)]
+    return(data.frame(start=s, end=e))
+  }# f_bin_vector
+  ###
+  which = unlist(range(oGRLgenes))
+  param = ScanBamParam(flag=scanBamFlag(), what = scanBamWhat(), which=which)
+  # read the GAlignments object
+  oGA = readGAlignments(bam, param=param)
+  # get the coverage
+  cov = coverageByTranscript(oGA, oGRLgenes, ignore.strand=FALSE)
+  mCoverage = sapply(cov, function(temp) {
+  # create a binned vector to create views on this coverage
+  bins = f_bin_vector(1, sum(width(temp)), bins=100)
+  # create views on these bins
+  ivCoverage = viewMeans(Views(temp, bins$start, bins$end))
+  ivCoverage = ivCoverage / max(ivCoverage)})
+  mCoverage = t(mCoverage)
+  mCoverage = colMeans(mCoverage, na.rm = T)
+  mCoverage = mCoverage/max(mCoverage)
+  return(mCoverage)
+}
+
+
+### coverage for each bam file
+mCoverage = sapply(dfSample$fp, getTranscriptCoverage)
+
