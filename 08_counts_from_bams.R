@@ -88,18 +88,26 @@ save(lCounts, file=n2)
 
 names(lCounts)
 mCounts = do.call(cbind, lCounts)
-i = which(rowMeans(mCounts) > 100)
+i = which(rowMeans(mCounts) > 1)
 
 # select transcripts with coverage
 oGRLgenes = exonsBy(TxDb.Hsapiens.UCSC.hg38.knownGene, by = 'gene')
 i = i[names(i) %in% names(oGRLgenes)]
 oGRLgenes = oGRLgenes[names(i)]
+f = sapply(width(oGRLgenes), sum) > 3000
+oGRLgenes = oGRLgenes[f]
+length(oGRLgenes)
 
 # ### take a sample of exons/transcripts
 # oGRLgenes = exonsBy(TxDb.Hsapiens.UCSC.hg38.knownGene, by = 'tx')
 # ## select transcripts with length close to  mean
-# oGRLgenes = oGRLgenes[sample(1:length(oGRLgenes), 1000, replace = F)]
-# length(oGRLgenes)
+oGRLgenes = oGRLgenes[sample(1:length(oGRLgenes), 3000, replace = F)]
+length(oGRLgenes)
+oGRLexons = oGRLgenes
+# temp = unlist(oGRLgenes)
+# temp = temp[width(temp) > 120]
+# temp = temp[sample(1:length(temp), size = 10000, replace = F)]
+# oGRLexons = split(temp, 1:length(temp))
 
 getTranscriptCoverage = function(bam){
   ###
@@ -113,14 +121,15 @@ getTranscriptCoverage = function(bam){
   }# f_bin_vector
   ###
   which = unlist(range(oGRLgenes))
+  which = resize(which, width = width(which)+100, fix='center')
   param = ScanBamParam(flag=scanBamFlag(), what = scanBamWhat(), which=which)
   # read the GAlignments object
   oGA = readGAlignments(bam, param=param)
   # get the coverage
-  cov = coverageByTranscript(oGA, oGRLgenes, ignore.strand=FALSE)
+  cov = coverageByTranscript(oGA, oGRLexons, ignore.strand=FALSE)
   mCoverage = sapply(cov, function(temp) {
   # create a binned vector to create views on this coverage
-  bins = f_bin_vector(1, sum(width(temp)), bins=100)
+  bins = f_bin_vector(1, sum(width(temp)), bins=2000)
   # create views on these bins
   ivCoverage = viewMeans(Views(temp, bins$start, bins$end))
   ivCoverage = ivCoverage / max(ivCoverage)})
@@ -133,4 +142,30 @@ getTranscriptCoverage = function(bam){
 
 ### coverage for each bam file
 mCoverage = sapply(dfSample$fp, getTranscriptCoverage)
+mCoverage = t(mCoverage)
+
+plot(lowess(mCoverage[1,], f=1/20), type='l', ylim=c(0, 1))
+apply(mCoverage[-1,], 1, function(x) lines(lowess(x, f=1/20)))
+
+identical(rownames(mCoverage), dfSample$fp)
+rownames(mCoverage) = as.character(dfSample$title)
+
+## save the summarized experiment object
+setwd(gcswd)
+n = make.names(paste('mCoverage rd louisa single cell rds'))
+n2 = paste0('~/Data/MetaData/', n)
+save(mCoverage, file=n2)
+
+# ## comment out after first time execution
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='matrix of coverage over transcripts from louisa single cell sequencing run with quality 10 duplicates removed and strict settings on trimmomatic')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
+
+
+
 
