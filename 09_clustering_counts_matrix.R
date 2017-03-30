@@ -30,7 +30,7 @@ db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', hos
 # get the query
 g_did
 q = paste0('select MetaFile.* from MetaFile
-           where (MetaFile.idData = 12) AND (MetaFile.comment like "%count%")')
+           where (MetaFile.idData = 12) AND (MetaFile.comment like "%count matrix%")')
 dfSample = dbGetQuery(db, q)
 dfSample
 q = paste0('select Sample.id as sid, Sample.group1, Sample.group2 as phenotype, Sample.title, File.* from Sample, File
@@ -343,6 +343,36 @@ col = col.p[as.numeric(fSamples)]
 plot(sizeFactors(oSce), oSce$total_counts/1e6, log="xy", pch=20,
      ylab="Library size (millions)", xlab="Size factor", col=col)
 text(sizeFactors(oSce), oSce$total_counts/1e6, labels = dfSample.names$title, pos = 1, cex=0.6)
+
+# plot the coverage over the transcripts after loading the appropriate file
+##### connect to mysql database to get file name
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# get the query
+g_did
+q = paste0('select MetaFile.* from MetaFile
+           where (MetaFile.idData = 12) AND (MetaFile.comment like "%coverage%")')
+dfLoadedFile = dbGetQuery(db, q)
+dfLoadedFile
+# close connection after getting data
+dbDisconnect(db)
+n = paste0(dfLoadedFile$location, dfLoadedFile$name)
+load(n)
+
+dim(mCoverage)
+## keep only the samples that are remaining
+table(rownames(mCoverage) %in% dfSample.names$title)
+mCoverage = mCoverage[rownames(mCoverage) %in% dfSample.names$title,]
+dim(mCoverage)
+
+pdf('Temp/coverage.pdf')
+par(mfrow=c(3,3))
+sapply(1:nrow(mCoverage), function(x) {
+  plot(lowess(mCoverage[x,], f=1/10), xaxt='n', xlab='5 to 3 prime binned transcript', ylab='Coverage', type='l', lwd=2,
+       main=paste(rownames(mCoverage)[x]), ylim=c(0, 1))
+  axis(1, at = c(1, 2000), labels = c('5', '3'), tick = T)})
+dev.off(dev.cur())
+
+
 
 
 # we compute a separate set of size factors for the spike-in set. For each cell, 
