@@ -372,7 +372,22 @@ sapply(1:nrow(mCoverage), function(x) {
   axis(1, at = c(1, 2000), labels = c('5', '3'), tick = T)})
 dev.off(dev.cur())
 
-
+### load the human genome package
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(BSgenome.Hsapiens.UCSC.hg38)
+oBSgenome = BSgenome.Hsapiens.UCSC.hg38
+oGRLgenes = exonsBy(TxDb.Hsapiens.UCSC.hg38.knownGene, by = 'gene')
+oGRLgenes = oGRLgenes[names(oGRLgenes) %in% rownames(oSce)]
+length(oGRLgenes)
+oSeqTranscript = getSeq(oBSgenome, oGRLgenes)
+## get the nucleotide frequency for each transcript
+mNucFreq = sapply(oSeqTranscript, function(x) colMeans(letterFrequency(x, letters='ATGC', OR=0, as.prob=T)))
+mGC = colSums(mNucFreq[c('G', 'C'),])
+hist(mGC)
+rm = rowMeans(counts(oSce)[names(mGC),])
+length(rm)
+identical(names(rm), names(mGC))
+plot(rm, mGC, log='xy', pch=20, col='darkgrey', xlab='Average expression', ylab='GC ratio')
 
 
 # we compute a separate set of size factors for the spike-in set. For each cell, 
