@@ -48,7 +48,7 @@ cvArrayJob = paste0('#$ -t 1-', nrow(dfCounts)/2)
 
 # set the directory names
 cvInput = 'input/'
-cvOutput = 'output/BASIC/'
+#cvOutput = 'output/BASIC/'
 cvBowtie2 = '/opt/apps/bioinformatics/bowtie2/2.2.5/'
 
 
@@ -73,7 +73,7 @@ temp = sapply(cvQueries, function(x){
   # write hisat2 command
   in.r1 = paste0(cvInput, 'trim_', lf[[1]])
   in.r2 = paste0(cvInput, 'trim_', lf[[2]])
-  out.dir = paste0(cvOutput, as.character(dfFiles$title[1]))
+  out.dir = paste0(as.character(dfFiles$title[1]))
   p1 = paste(in.r1, in.r2, out.dir, sep=' ')
   writeLines(p1, oFile.param)
 })
@@ -101,8 +101,6 @@ inr1=`sed -n ${number}p $paramfile | awk '{print $1}'`
 inr2=`sed -n ${number}p $paramfile | awk '{print $2}'`
 outdir=`sed -n ${number}p $paramfile | awk '{print $3}'`
 
-# create the output directory
-mkdir $outdir
 
 # 9. Run the program.", oFile)
 p1 = paste('python3.5 BASIC.py -p 2 -b', cvBowtie2, '-PE_1', '$inr1', '-PE_2', '$inr2', '-o', '$outdir', sep=' ')
