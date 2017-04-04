@@ -38,7 +38,7 @@ cvQueries = paste0('select File.*, Sample.title from File, Sample
 # set header variables 
 cvShell = '#!/bin/bash'
 cvShell.2 = '#$ -S /bin/bash'
-cvProcessors = '#$ -pe smp 8'
+cvProcessors = '#$ -pe smp 2'
 cvWorkingDir = '#$ -cwd'
 cvJobName = '#$ -N BASIC-array'
 cvStdout = '#$ -j y'
@@ -105,7 +105,7 @@ outdir=`sed -n ${number}p $paramfile | awk '{print $3}'`
 mkdir $outdir
 
 # 9. Run the program.", oFile)
-p1 = paste('python3.5 BASIC.py -p 8 -b', cvBowtie2, '-PE_1', '$inr1', '-PE_2', '$inr2', '-o', '$outdir', sep=' ')
+p1 = paste('python3.5 BASIC.py -p 2 -b', cvBowtie2, '-PE_1', '$inr1', '-PE_2', '$inr2', '-o', '$outdir', sep=' ')
 com = paste(p1)
 
 writeLines(com, oFile)
