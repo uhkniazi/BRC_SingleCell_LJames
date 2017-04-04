@@ -383,12 +383,13 @@ oSeqTranscript = getSeq(oBSgenome, oGRLgenes)
 ## get the nucleotide frequency for each transcript
 mNucFreq = sapply(oSeqTranscript, function(x) colMeans(letterFrequency(x, letters='ATGC', OR=0, as.prob=T)))
 mGC = colSums(mNucFreq[c('G', 'C'),])
-hist(mGC)
+par(p.old)
+hist(mGC, main='distribution of G or C nucleotides in transcripts', xlab='G or C proportion', prob=T)
 rm = rowMeans(counts(oSce)[names(mGC),])
 length(rm)
 identical(names(rm), names(mGC))
-plot(rm, mGC, log='xy', pch=20, col='darkgrey', xlab='Average expression', ylab='GC ratio')
-
+plot(rm, mGC, log='xy', pch=20, col='darkgrey', xlab='Average expression', ylab='GC ratio', main='GC ratio vs Average Transcript Expression')
+lines(lowess(rm, mGC), lwd=2, col=2)
 
 # we compute a separate set of size factors for the spike-in set. For each cell, 
 # the spike-in-specific size factor is defined as the total count across all transcripts in the spike-in set.
@@ -561,6 +562,22 @@ c = c[as.numeric(factor(dfSample.names$group1))]
 dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
         xlab='Groups', ylab='Mean Expression', pch=20, col=c, scales=list(x=list(cex=0.8, rot=45)))
 
+## perform a statistical test if the distances between the two groups sharing capture sites are same or different
+f = table(dfData$condition)
+f = which(f > 1); f = names(f)
+fGroups = rep(NA, times=nrow(dfData))
+f = which(as.character(dfData$condition) %in% f)
+fGroups[f] = 'SharedCapture'
+fGroups[-f] = 'UniqueCapture'
+dfData$fGroups = fGroups
+
+iDist.1 = as.vector(dist(dfData$ivMean[fGroups == 'SharedCapture']))
+iDist.2 = as.vector(dist(dfData$ivMean[fGroups == 'UniqueCapture']))
+t.test(iDist.2, iDist.1)
+par(p.old)
+boxplot(iDist.1, iDist.2, main='Distance between 2 groups', xlab='Groups', ylab='Distance', xaxt='n')
+axis(1, at = c(1, 2), labels = c('Shared', 'Unique'), las=2)
+
 #########################
 i = which(ivMean > 1.4)
 dfData[i,]
@@ -601,9 +618,6 @@ col = iCol[as.numeric(g1)]
 plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
      main='PCA comp 1 and 2, Coloured on Shared Capture Sites')
 text(pr.out$x[i2,1:2], labels = dfSample.names$title[i2], pos = 1, cex=0.8)
-
-
-
 
 ###### association between proportion of reads aligned to ERCC vs Genes
 ## get count matrix
