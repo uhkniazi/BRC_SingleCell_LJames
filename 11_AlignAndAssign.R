@@ -36,7 +36,7 @@ oGRLgenes = exonsBy(TxDb.Hsapiens.UCSC.hg38.knownGene, by = 'tx', use.names=T)
 length(oGRLgenes)
 
 # load the coordinates for the constant regions
-df = read.csv('Data_external/IGH_coordinates.csv', header=T, stringsAsFactors = F)
+df = read.csv('IGH_coordinates.csv', header=T, stringsAsFactors = F)
 oGRighC = GRanges(df$Chromosome, IRanges(df$Start, df$End), strand=ifelse(df$Strand == 'minus', '-', '+'))
 
 # find the transcript positions for these regions
@@ -83,7 +83,7 @@ scoreHeavyConstant = function(oSeqPred){
 
 ############ repeat similar process for light chain constant regions
 
-df = read.csv('Data_external/IGLambdaConstant_coordinates.csv', header=T, stringsAsFactors = F)
+df = read.csv('IGLambdaConstant_coordinates.csv', header=T, stringsAsFactors = F)
 oGRiglC = GRanges(df$Chromosome, IRanges(df$Start, df$End), strand=ifelse(df$Strand == 'minus', '-', '+'))
 
 # find the transcript positions for these regions
@@ -179,6 +179,86 @@ for (i in 1:nrow(dfSample)){
     dfSample$IGL[i] = names(which.max(sc))
   }
 }
+
+setwd(gcswd)
+######################################################################################################
+####### construct the variable regions
+chr14 = read.csv(gzfile('hg38_chr14_gencodecompV24.gz'), header=T, sep='\t', stringsAsFactors = F)
+chr2 = read.csv(gzfile('hg38_chr2_gencodecompV24.gz'), header=T, sep='\t', stringsAsFactors = F)
+chr22 = read.csv(gzfile('hg38_chr22_gencodecompV24.gz'), header=T, sep='\t', stringsAsFactors = F)
+
+## coordinates for the heavy variables
+l = grep('IGHV', chr14$name2); length(l)
+chr = chr14[l,]
+oGRighVar = GRanges(chr$chrom, IRanges(chr$txStart, chr$txEnd), strand=chr$strand) 
+names(oGRighVar) = chr$name2
+
+## coordinates for the light variables
+l = grep('IGKV', chr2$name2); length(l)
+chr = chr2[l,]
+l = grep('IGLV', chr22$name2); length(l)
+chr = rbind(chr, chr22[l,])
+
+oGRigLightVar = GRanges(chr$chrom, IRanges(chr$txStart, chr$txEnd), strand=chr$strand) 
+names(oGRigLightVar) = chr$name2
+
+##### get the sequence for the heavy and light chain regions
+oSeqIGHc = getSeq(BSgenome.Hsapiens.UCSC.hg38, oGRighVar)
+oSeqIGLc = getSeq(BSgenome.Hsapiens.UCSC.hg38, oGRigLightVar)
+
+alignHeavyVariable = function(oSeqPred, title){
+  pwa = pairwiseAlignment(oSeqIGHc, subject=oSeqPred, type='local')
+  m = as.matrix(pwa)
+  c = unlist(strsplit(toString(oSeqPred), split = ''))
+  m = rbind(m, c)
+  se = f_oDNAStringSetConvertPWAMatrix(m)
+  names(se) = c(names(oSeqIGHc), title)
+  return(se)
+}
+
+alignLightVariable = function(oSeqPred, title){
+  pwa = pairwiseAlignment(oSeqIGLc, subject=oSeqPred, type='local')
+  m = as.matrix(pwa)
+  c = unlist(strsplit(toString(oSeqPred), split = ''))
+  m = rbind(m, c)
+  se = f_oDNAStringSetConvertPWAMatrix(m)
+  names(se) = c(names(oSeqIGLc), title)
+  return(se)
+}
+
+### go through each sample and read the heavy chain and light chain
+for (i in 1:nrow(dfSample)){
+  if (is.na(dfSample$location[i])) next;
+  ## import the assembled sequence
+  setwd('Results/Results')
+  seq.as = import(dfSample$location[i])
+  ### search for the word heavy chain and light chain
+  ## for heavy
+  seq.as.h = seq.as[grepl(pattern = 'heavy', names(seq.as))]
+  if (length(seq.as.h) > 1) seq.as.h = seq.as.h[grepl(pattern = 'variable', names(seq.as.h))]
+  ## error check
+  if (length(seq.as.h) != 1) {warning(paste(dfSample$location[i], 'some error while looking for heavy variable region'));
+  } else {
+    ## align the heavy chain type
+    sc = alignHeavyVariable(seq.as.h, dfSample$title[i])
+    setwd(gcswd)
+    export(sc, paste0('Results/', dfSample$title[i], 'HeavyVariable.fasta'))
+  }
+  ## for light
+  seq.as.l = seq.as[grepl(pattern = 'light', names(seq.as))]
+  if (length(seq.as.l) > 1) seq.as.l = seq.as.l[grepl(pattern = 'variable', names(seq.as.l))]
+  ## error check
+  if (length(seq.as.l) != 1) {warning(paste(dfSample$location[i], 'some error while looking for light variable region'));
+  } else {
+    ## assign the light chain type
+    sc = alignLightVariable(seq.as.l, dfSample$title[i])
+    setwd(gcswd)
+    export(sc, paste0('Results/', dfSample$title[i], 'LightVariable.fasta'))
+  }
+}
+
+
+
 
 
 
