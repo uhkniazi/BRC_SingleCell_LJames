@@ -226,11 +226,25 @@ alignLightVariable = function(oSeqPred, title){
   return(se)
 }
 
-### go through each sample and read the heavy chain and light chain
+scoreHeavyVariable = function(oSeqPred){
+  s = pairwiseAlignment(oSeqIGHc, subject=oSeqPred, type='local', scoreOnly=T)
+  names(s) = names(oSeqIGHc)
+  return(s)
+}
+
+scoreLightVariable = function(oSeqPred){
+  s = pairwiseAlignment(oSeqIGLc, subject=oSeqPred, type='local', scoreOnly=T)
+  names(s) = names(oSeqIGLc)
+  return(s)
+}
+
+setwd('Results/Results/')
+dfSample$IGHVar = NA
+dfSample$IGLightVar = NA
+### go through each sample and read the heavy chain
 for (i in 1:nrow(dfSample)){
   if (is.na(dfSample$location[i])) next;
   ## import the assembled sequence
-  setwd('Results/Results')
   seq.as = import(dfSample$location[i])
   ### search for the word heavy chain and light chain
   ## for heavy
@@ -239,23 +253,57 @@ for (i in 1:nrow(dfSample)){
   ## error check
   if (length(seq.as.h) != 1) {warning(paste(dfSample$location[i], 'some error while looking for heavy variable region'));
   } else {
-    ## align the heavy chain type
-    sc = alignHeavyVariable(seq.as.h, dfSample$title[i])
-    setwd(gcswd)
-    export(sc, paste0('Results/', dfSample$title[i], 'HeavyVariable.fasta'))
+    ## assign the heavy chain type
+    sc = scoreHeavyVariable(seq.as.h)
+    dfSample$IGHVar[i] = names(which.max(sc))
   }
   ## for light
   seq.as.l = seq.as[grepl(pattern = 'light', names(seq.as))]
   if (length(seq.as.l) > 1) seq.as.l = seq.as.l[grepl(pattern = 'variable', names(seq.as.l))]
   ## error check
-  if (length(seq.as.l) != 1) {warning(paste(dfSample$location[i], 'some error while looking for light variable region'));
+  if (length(seq.as.l) != 1) {warning(paste(dfSample$location[i], 'some error while looking for light constant region'));
   } else {
     ## assign the light chain type
-    sc = alignLightVariable(seq.as.l, dfSample$title[i])
-    setwd(gcswd)
-    export(sc, paste0('Results/', dfSample$title[i], 'LightVariable.fasta'))
+    sc = scoreLightVariable(seq.as.l)
+    dfSample$IGLightVar[i] = names(which.max(sc))
   }
 }
+
+setwd(gcswd)
+
+
+
+########### if we want to generate fasta alignment files then follow this
+### go through each sample and read the heavy chain and light chain
+# for (i in 1:nrow(dfSample)){
+#   if (is.na(dfSample$location[i])) next;
+#   ## import the assembled sequence
+#   setwd('Results/Results')
+#   seq.as = import(dfSample$location[i])
+#   ### search for the word heavy chain and light chain
+#   ## for heavy
+#   seq.as.h = seq.as[grepl(pattern = 'heavy', names(seq.as))]
+#   if (length(seq.as.h) > 1) seq.as.h = seq.as.h[grepl(pattern = 'variable', names(seq.as.h))]
+#   ## error check
+#   if (length(seq.as.h) != 1) {warning(paste(dfSample$location[i], 'some error while looking for heavy variable region'));
+#   } else {
+#     ## align the heavy chain type
+#     sc = alignHeavyVariable(seq.as.h, dfSample$title[i])
+#     setwd(gcswd)
+#     export(sc, paste0('Results/', dfSample$title[i], 'HeavyVariable.fasta'))
+#   }
+#   ## for light
+#   seq.as.l = seq.as[grepl(pattern = 'light', names(seq.as))]
+#   if (length(seq.as.l) > 1) seq.as.l = seq.as.l[grepl(pattern = 'variable', names(seq.as.l))]
+#   ## error check
+#   if (length(seq.as.l) != 1) {warning(paste(dfSample$location[i], 'some error while looking for light variable region'));
+#   } else {
+#     ## assign the light chain type
+#     sc = alignLightVariable(seq.as.l, dfSample$title[i])
+#     setwd(gcswd)
+#     export(sc, paste0('Results/', dfSample$title[i], 'LightVariable.fasta'))
+#   }
+# }
 
 
 
