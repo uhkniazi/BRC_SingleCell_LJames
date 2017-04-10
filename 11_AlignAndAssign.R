@@ -271,6 +271,43 @@ for (i in 1:nrow(dfSample)){
 
 setwd(gcswd)
 
+## load and store each sequence in a biostrings object 
+setwd('Results/Results/')
+### go through each sample and read the sequences and store in a biostrings object
+lSeqs = lapply(1:nrow(dfSample), function(i) {
+  if (is.na(dfSample$location[i])) return(NULL);
+  ## import the assembled sequence
+  seq.as = import(dfSample$location[i])
+  return(seq.as)
+})
+
+names(lSeqs) = as.character(dfSample$title)
+setwd(gcswd)
+
+#################### write results to data base
+# n = make.names(paste('dfSingleCellAnnotation joana single cell chain annotation csv'))
+# n2 = paste0('~/Data/MetaData/', n)
+# write.csv(dfSample, file=n2)
+# 
+# ## note: comment out as this entry has been made in db
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='csv', location='~/Data/MetaData/', comment='joana single cell sequencing project annotations for the heavy and light chains for each cell')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# 
+# ##
+# n = make.names(paste('list of DNAStringSet objects joana b cell heavy light chains rds'))
+# n2 = paste0('~/Data/MetaData/', n)
+# save(lSeqs, file=n2)
+# 
+# ## note: comment out as this entry has been made in db
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/', comment='joana single cell sequencing project list of DNAStringSet objects for heavy and light chains')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
+
+
 
 
 ########### if we want to generate fasta alignment files then follow this
