@@ -565,18 +565,21 @@ dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expre
 ## perform a statistical test if the distances between the two groups sharing capture sites are same or different
 f = table(dfData$condition)
 f = which(f > 1); f = names(f)
-fGroups = rep(NA, times=nrow(dfData))
+fGroups = as.character(dfData$condition)
 f = which(as.character(dfData$condition) %in% f)
-fGroups[f] = 'SharedCapture'
 fGroups[-f] = 'UniqueCapture'
 dfData$fGroups = fGroups
-
-iDist.1 = as.vector(dist(dfData$ivMean[fGroups == 'SharedCapture']))
-iDist.2 = as.vector(dist(dfData$ivMean[fGroups == 'UniqueCapture']))
+fGroups = factor(fGroups)
+iDist = tapply(dfData$ivMean, fGroups, function(x) abs(as.vector(dist(x))))
+iDist.2 = iDist$UniqueCapture
+iDist$UniqueCapture = NULL
+iDist.1 = as.vector(do.call(cbind, iDist))
 t.test(iDist.2, iDist.1)
 par(p.old)
-boxplot(iDist.1, iDist.2, main='Distance between 2 groups', xlab='Groups', ylab='Distance', xaxt='n')
+l = c(rep(0, times=length(iDist.1)), rep(1, times=length(iDist.2)))
+boxplot(c(iDist.1, iDist.2) ~ l, main='Distance between 2 groups', xlab='Groups', ylab='Distance', xaxt='n')
 axis(1, at = c(1, 2), labels = c('Shared', 'Unique'), las=2)
+stripchart(c(iDist.1, iDist.2) ~ l, vertical=T, method='jitter', add=T, pch=20)
 
 #########################
 i = which(ivMean > 1.4)
