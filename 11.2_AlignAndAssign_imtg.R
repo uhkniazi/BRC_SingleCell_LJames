@@ -51,8 +51,6 @@ fTypes = gsub('^(.+)\\*\\w+', '\\1', fTypes)
 fTypes.heavy = grep('IGHA|IGHE$|IGHG\\d|IGHD$|IGHM', fTypes)
 
 oSeqIGHc = oSeqImgt[fTypes.heavy]
-## unlist each exon to make a contigous sequence
-oSeqIGHc = sapply(oSeqIGHc, unlist)
 
 scoreHeavyConstant = function(oSeqPred){
   s = pairwiseAlignment(oSeqIGHc, subject=oSeqPred, type='local', scoreOnly=T)
@@ -138,28 +136,11 @@ dfSample$IGL = gsub('^(.+)\\*\\w+', '\\1', temp)
 
 ######################################################################################################
 ####### construct the variable regions
-chr14 = read.csv(gzfile('hg38_chr14_gencodecompV24.gz'), header=T, sep='\t', stringsAsFactors = F)
-chr2 = read.csv(gzfile('hg38_chr2_gencodecompV24.gz'), header=T, sep='\t', stringsAsFactors = F)
-chr22 = read.csv(gzfile('hg38_chr22_gencodecompV24.gz'), header=T, sep='\t', stringsAsFactors = F)
-
-## coordinates for the heavy variables
-l = grep('IGHV', chr14$name2); length(l)
-chr = chr14[l,]
-oGRighVar = GRanges(chr$chrom, IRanges(chr$txStart, chr$txEnd), strand=chr$strand) 
-names(oGRighVar) = chr$name2
-
-## coordinates for the light variables
-l = grep('IGKV', chr2$name2); length(l)
-chr = chr2[l,]
-l = grep('IGLV', chr22$name2); length(l)
-chr = rbind(chr, chr22[l,])
-
-oGRigLightVar = GRanges(chr$chrom, IRanges(chr$txStart, chr$txEnd), strand=chr$strand) 
-names(oGRigLightVar) = chr$name2
-
+fTypes.heavy = grep('IGHV', fTypes)
+fTypes.light = grep('IGLV|IGKV', fTypes)
 ##### get the sequence for the heavy and light chain regions
-oSeqIGHc = getSeq(BSgenome.Hsapiens.UCSC.hg38, oGRighVar)
-oSeqIGLc = getSeq(BSgenome.Hsapiens.UCSC.hg38, oGRigLightVar)
+oSeqIGHc = oSeqImgt[fTypes.heavy]
+oSeqIGLc = oSeqImgt[fTypes.light]
 
 alignHeavyVariable = function(oSeqPred, title){
   pwa = pairwiseAlignment(oSeqIGHc, subject=oSeqPred, type='local')
@@ -216,7 +197,7 @@ for (i in 1:nrow(dfSample)){
   seq.as.l = seq.as[grepl(pattern = 'light', names(seq.as))]
   if (length(seq.as.l) > 1) seq.as.l = seq.as.l[grepl(pattern = 'variable', names(seq.as.l))]
   ## error check
-  if (length(seq.as.l) != 1) {warning(paste(dfSample$location[i], 'some error while looking for light constant region'));
+  if (length(seq.as.l) != 1) {warning(paste(dfSample$location[i], 'some error while looking for light variable region'));
   } else {
     ## assign the light chain type
     sc = scoreLightVariable(seq.as.l)
@@ -225,22 +206,26 @@ for (i in 1:nrow(dfSample)){
 }
 
 setwd(gcswd)
+temp = gsub(".+\\|(.+)\\|Homo .+", '\\1', dfSample$IGHVar)
+dfSample$IGHVar = gsub('^(.+)\\*\\w+', '\\1', temp)
+temp = gsub(".+\\|(.+)\\|Homo .+", '\\1', dfSample$IGLightVar)
+dfSample$IGLightVar = gsub('^(.+)\\*\\w+', '\\1', temp)
 
-## load and store each sequence in a biostrings object 
-setwd('Results/Results/')
-### go through each sample and read the sequences and store in a biostrings object
-lSeqs = lapply(1:nrow(dfSample), function(i) {
-  if (is.na(dfSample$location[i])) return(NULL);
-  ## import the assembled sequence
-  seq.as = import(dfSample$location[i])
-  return(seq.as)
-})
-
-names(lSeqs) = as.character(dfSample$title)
-setwd(gcswd)
+# ## load and store each sequence in a biostrings object 
+# setwd('Results/Results/')
+# ### go through each sample and read the sequences and store in a biostrings object
+# lSeqs = lapply(1:nrow(dfSample), function(i) {
+#   if (is.na(dfSample$location[i])) return(NULL);
+#   ## import the assembled sequence
+#   seq.as = import(dfSample$location[i])
+#   return(seq.as)
+# })
+# 
+# names(lSeqs) = as.character(dfSample$title)
+# setwd(gcswd)
 
 #################### write results to data base
-# n = make.names(paste('dfSingleCellAnnotation joana single cell chain annotation csv'))
+# n = make.names(paste('dfSingleCellAnnotation imtg joana single cell chain annotation csv'))
 # n2 = paste0('~/Data/MetaData/', n)
 # write.csv(dfSample, file=n2)
 # 
@@ -249,9 +234,9 @@ setwd(gcswd)
 # db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
 # dbListTables(db)
 # dbListFields(db, 'MetaFile')
-# df = data.frame(idData=g_did, name=n, type='csv', location='~/Data/MetaData/', comment='joana single cell sequencing project annotations for the heavy and light chains for each cell')
+# df = data.frame(idData=g_did, name=n, type='csv', location='~/Data/MetaData/', comment='joana single cell sequencing project annotations for the heavy and light chains for each cell using the imtg database')
 # dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-# 
+
 # ##
 # n = make.names(paste('list of DNAStringSet objects joana b cell heavy light chains rds'))
 # n2 = paste0('~/Data/MetaData/', n)
