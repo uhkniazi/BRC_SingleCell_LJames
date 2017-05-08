@@ -25,18 +25,23 @@ db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', hos
 g_did
 q = paste0('select MetaFile.* from MetaFile
            where (MetaFile.idData = 12)')
-dfSample = dbGetQuery(db, q)
-dfSample
+dfSample.db = dbGetQuery(db, q)
+dfSample.db
 # close connection after getting data
 dbDisconnect(db)
-## load the count matrix, bam files object, assembled sequences, and sample annotation with receptor type information
-n = paste0(dfSample$location[dfSample$id==40], dfSample$name[dfSample$id==40])
+## load the count matrix, bam files object pre and post removing duplicates, 
+## assembled sequences, and sample annotation with receptor type information
+n = paste0(dfSample.db$location[dfSample.db$id==40], dfSample.db$name[dfSample.db$id==40])
 load(n)
-n = paste0(dfSample$location[dfSample$id==39], dfSample$name[dfSample$id==39])
+n = paste0(dfSample.db$location[dfSample.db$id==39], dfSample.db$name[dfSample.db$id==39])
 load(n)
-n = paste0(dfSample$location[dfSample$id==43], dfSample$name[dfSample$id==43])
+n = paste0(dfSample.db$location[dfSample.db$id==43], dfSample.db$name[dfSample.db$id==43])
 load(n)
-n = paste0(dfSample$location[dfSample$id==42], dfSample$name[dfSample$id==42])
+## comment out older analysis using UCSC database
+# n = paste0(dfSample$location[dfSample$id==42], dfSample$name[dfSample$id==42])
+# dfSample = read.csv(n, header=T, stringsAsFactors = F, row.names=1)
+## new one using imtg database
+n = paste0(dfSample.db$location[dfSample.db$id==44], dfSample.db$name[dfSample.db$id==44])
 dfSample = read.csv(n, header=T, stringsAsFactors = F, row.names=1)
 
 ## make count matrix and get ercc vs normal genes read counts
@@ -65,7 +70,26 @@ cs = colSums(mCounts)
 mCounts = sweep(mCounts, 2, cs, '/')
 dfSample$Genes_Proportion = round(mCounts['Genes',], 3)
 
-## how many reads aligned 
+## how many reads aligned after duplicate removal
+lAllBams$desc = NULL
+lAllBams$meta = NULL
+# number of reads aligned
+f1 = function(ob){
+  n = sapply(ob, function(x) length(CBamScaffold.getReadWidth(x)))
+  n = sum(n)/1e+6
+  return(n)
+}
+
+iReadCount = sapply(lAllBams, f1)
+## order the read counts as the sample annotation
+i = match(dfSample$title, names(iReadCount))
+identical(dfSample$title, names(iReadCount)[i])
+dfSample$ReadsAligned_rmDup = iReadCount[i]
+
+## load the bam before duplicate removal
+n = paste0(dfSample.db$location[dfSample.db$id==45], dfSample.db$name[dfSample.db$id==45])
+load(n)
+
 lAllBams$desc = NULL
 lAllBams$meta = NULL
 # number of reads aligned
@@ -86,14 +110,14 @@ dfSample$ReadsAligned = iReadCount[i]
 p = apply(as.matrix(dfSample[,7:10]), 2, is.na)
 p = apply(p, 1, function(x) any(x == T))
 table(p)
-df = data.frame(present=as.numeric(!p), dfSample[,c(11, 12, 13, 14)] )
+df = data.frame(present=as.numeric(!p), dfSample[,c(11, 12, 13, 14, 15)] )
 fit = glm(present ~ Genes_Proportion, data=df, family='binomial')
-fit = glm(present ~ ReadsAligned, data=df, family='binomial')
+fit = glm(present ~ ReadsAligned_rmDup, data=df, family='binomial')
 summary(fit)
-df2$ReadsAligned = seq(0, 8, length.out = 100)
+df2 = data.frame(ReadsAligned_rmDup = seq(0, 8, length.out = 100))
 p = predict(fit, df2, type='response')
-plot(df2$ReadsAligned, p, type='l', ylim=c(0,1))
-points(df$ReadsAligned, df$present)
+plot(df2$ReadsAligned_rmDup, p, type='l', ylim=c(0,1))
+points(df$ReadsAligned_rmDup, df$present)
 
 ########## add sequences to the table
 identical(names(lSeqs), dfSample$title)
@@ -109,7 +133,7 @@ cvSeqs = sapply(lSeqs, function(x){
 })
 
 dfSample$Sequences = cvSeqs
-write.csv(dfSample, file='Results/Receptor_summary.csv')
+write.csv(dfSample, file='Results/Receptor_summary_imtg.csv')
 
 
 
