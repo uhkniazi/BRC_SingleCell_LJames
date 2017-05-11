@@ -135,6 +135,124 @@ cvSeqs = sapply(lSeqs, function(x){
 dfSample$Sequences = cvSeqs
 write.csv(dfSample, file='Results/Receptor_summary_imtg.csv')
 
+### make a pca plot with the scater object and only for cells with 
+### classes defined
+library(scater)
+n = paste0(dfSample.db$location[dfSample.db$id==46], dfSample.db$name[dfSample.db$id==46])
+load(n)
+
+dfSamples = dfSamples[dfSamples$id %in% oSce.F$dbID_Sample,]
+# sanity check
+identical(dfSamples$id, oSce.F$dbID_Sample)
+
+mCounts = exprs(oSce.F)
+# n = dim(mCounts)[1] * dim(mCounts)[2]
+# mCounts = mCounts + rnorm(n)
+
+#### standardize samples first
+s = apply(mCounts, 2, sd)
+mCounts.s = sweep(mCounts, 2, s, '/')
+# set the factor for colours and drop NA samples
+fSamples = dfSamples$IGH
+i = which(is.na(fSamples))
+mCounts.s = mCounts.s[,-i]
+fSamples = factor(fSamples[-i])
+col.p = rainbow(length(unique(fSamples)))
+col = col.p[as.numeric(fSamples)]
+
+## PCA with strandardizing samples
+mCounts.s = t(mCounts.s)
+
+# set scaling to FALSE to scale variables i.e. genes in columns
+pr.out = prcomp(mCounts.s, scale = F)
 
 
+plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
+     main='PCA comp 1 and 2, normalized, Heavy Constant')
+text(pr.out$x[,1:2], labels = dfSamples$title[-i], pos = 1, cex=0.6)
+legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.8)
 
+### light constant
+mCounts = exprs(oSce.F)
+# n = dim(mCounts)[1] * dim(mCounts)[2]
+# mCounts = mCounts + rnorm(n)
+
+#### standardize samples first
+s = apply(mCounts, 2, sd)
+mCounts.s = sweep(mCounts, 2, s, '/')
+# set the factor for colours and drop NA samples
+fSamples = dfSamples$IGL
+i = which(is.na(fSamples))
+mCounts.s = mCounts.s[,-i]
+fSamples = factor(fSamples[-i])
+col.p = rainbow(length(unique(fSamples)))
+col = col.p[as.numeric(fSamples)]
+
+## PCA with strandardizing samples
+mCounts.s = t(mCounts.s)
+
+# set scaling to FALSE to scale variables i.e. genes in columns
+pr.out = prcomp(mCounts.s, scale = F)
+
+
+plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
+     main='PCA comp 1 and 2, normalized, Light Constant')
+text(pr.out$x[,1:2], labels = dfSamples$title[-i], pos = 1, cex=0.6)
+legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.8)
+
+## heavy variable
+mCounts = exprs(oSce.F)
+# n = dim(mCounts)[1] * dim(mCounts)[2]
+# mCounts = mCounts + rnorm(n)
+
+#### standardize samples first
+s = apply(mCounts, 2, sd)
+mCounts.s = sweep(mCounts, 2, s, '/')
+# set the factor for colours and drop NA samples
+fSamples = dfSamples$IGHVar
+i = which(is.na(fSamples))
+mCounts.s = mCounts.s[,-i]
+fSamples = factor(fSamples[-i])
+col.p = rainbow(length(unique(fSamples)))
+col = col.p[as.numeric(fSamples)]
+
+## PCA with strandardizing samples
+mCounts.s = t(mCounts.s)
+
+# set scaling to FALSE to scale variables i.e. genes in columns
+pr.out = prcomp(mCounts.s, scale = F)
+
+
+plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
+     main='PCA comp 1 and 2, normalized, Heavy Variable')
+text(pr.out$x[,1:2], labels = dfSamples$title[-i], pos = 1, cex=0.6)
+legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.6, ncol=2)
+
+
+## light variable
+mCounts = exprs(oSce.F)
+# n = dim(mCounts)[1] * dim(mCounts)[2]
+# mCounts = mCounts + rnorm(n)
+
+#### standardize samples first
+s = apply(mCounts, 2, sd)
+mCounts.s = sweep(mCounts, 2, s, '/')
+# set the factor for colours and drop NA samples
+fSamples = dfSamples$IGLightVar
+i = which(is.na(fSamples))
+mCounts.s = mCounts.s[,-i]
+fSamples = factor(fSamples[-i])
+col.p = rainbow(length(unique(fSamples)))
+col = col.p[as.numeric(fSamples)]
+
+## PCA with strandardizing samples
+mCounts.s = t(mCounts.s)
+
+# set scaling to FALSE to scale variables i.e. genes in columns
+pr.out = prcomp(mCounts.s, scale = F)
+
+
+plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
+     main='PCA comp 1 and 2, normalized, Light Variable')
+text(pr.out$x[,1:2], labels = dfSamples$title[-i], pos = 1, cex=0.6)
+legend('topright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fSamples))], cex=0.6, ncol=2)
