@@ -99,7 +99,7 @@ hist(oSce$total_features, xlab="Number of expressed genes", main="QC Features wi
 bDropLibsize = isOutlier(oSce$total_counts, nmads=3, type="lower", log=TRUE); table(bDropLibsize)
 bDropFeature = isOutlier(oSce$total_features, nmads=3, type="lower", log=TRUE); table(bDropFeature)
 
-# The quantity of spike-in RNA added to each cell should be constant, 
+# The quantity of spike-in RNA added to each cell/well should be constant, 
 # which means that the proportion should increase upon loss of endogenous RNA in low-quality cells.
 hist(oSce$pct_counts_feature_controls_ERCC, xlab="ERCC proportion (%)", 
      ylab="", main="QC Proportion of reads mapped to ERCC")
@@ -116,64 +116,64 @@ data.frame(ByLibSize=sum(bDropLibsize), ByFeature=sum(bDropFeature),
 
 par(p.old)
 
-######### correlation b/w spike-in mix and ercc alignment
-mCounts = counts(oSce)
-dim(mCounts)
-dfERCC = read.csv('~/Data/MetaData/ERCC_concentrations.csv', header=T, sep='\t', stringsAsFactors = F)
-i2 = grepl(pattern = '^ERCC', rownames(mCounts))
-table(i2)
-mCounts = mCounts[i2,]
-# order the matrix in the same order as the ERCC names in the dataframe
-i = match(dfERCC$ERCC_ID, rownames(mCounts))
-mCounts = mCounts[i,]
-# sanity check
-identical(rownames(mCounts), dfERCC$ERCC_ID)
-
-x = dfERCC$Mix_1
-pdf('Temp/mix1.pdf')
-par(mfrow=c(3, 3))
-sapply(1:ncol(mCounts), function(cn){
-  cn = colnames(mCounts)[cn]
-  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 1', ylab='Log Aligned')
-  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
-})
-dev.off(dev.cur())
-
-x = dfERCC$Mix_2
-pdf('Temp/mix2.pdf')
-par(mfrow=c(3, 3))
-sapply(1:ncol(mCounts), function(cn){
-  cn = colnames(mCounts)[cn]
-  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 2', ylab='Log Aligned')
-  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
-})
-dev.off(dev.cur())
-
-### choose ERCCs subset that have a reasonable number of reads aligned
-m = rowMeans(mCounts)
-i = which(m > 10)
-mCounts = mCounts[i,]
-dfERCC = dfERCC[i,]
-
-x = dfERCC$Mix_1
-pdf('Temp/mix1.pdf')
-par(mfrow=c(3, 3))
-sapply(1:ncol(mCounts), function(cn){
-  cn = colnames(mCounts)[cn]
-  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 1', ylab='Log Aligned')
-  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
-})
-dev.off(dev.cur())
-
-x = dfERCC$Mix_2
-pdf('Temp/mix2.pdf')
-par(mfrow=c(3, 3))
-sapply(1:ncol(mCounts), function(cn){
-  cn = colnames(mCounts)[cn]
-  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 2', ylab='Log Aligned')
-  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
-})
-dev.off(dev.cur())
+# ######### correlation b/w spike-in mix and ercc alignment
+# mCounts = counts(oSce)
+# dim(mCounts)
+# dfERCC = read.csv('~/Data/MetaData/ERCC_concentrations.csv', header=T, sep='\t', stringsAsFactors = F)
+# i2 = grepl(pattern = '^ERCC', rownames(mCounts))
+# table(i2)
+# mCounts = mCounts[i2,]
+# # order the matrix in the same order as the ERCC names in the dataframe
+# i = match(dfERCC$ERCC_ID, rownames(mCounts))
+# mCounts = mCounts[i,]
+# # sanity check
+# identical(rownames(mCounts), dfERCC$ERCC_ID)
+# 
+# x = dfERCC$Mix_1
+# pdf('Temp/mix1.pdf')
+# par(mfrow=c(3, 3))
+# sapply(1:ncol(mCounts), function(cn){
+#   cn = colnames(mCounts)[cn]
+#   plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 1', ylab='Log Aligned')
+#   lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+# })
+# dev.off(dev.cur())
+# 
+# x = dfERCC$Mix_2
+# pdf('Temp/mix2.pdf')
+# par(mfrow=c(3, 3))
+# sapply(1:ncol(mCounts), function(cn){
+#   cn = colnames(mCounts)[cn]
+#   plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 2', ylab='Log Aligned')
+#   lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+# })
+# dev.off(dev.cur())
+# 
+# ### choose ERCCs subset that have a reasonable number of reads aligned
+# m = rowMeans(mCounts)
+# i = which(m > 10)
+# mCounts = mCounts[i,]
+# dfERCC = dfERCC[i,]
+# 
+# x = dfERCC$Mix_1
+# pdf('Temp/mix1.pdf')
+# par(mfrow=c(3, 3))
+# sapply(1:ncol(mCounts), function(cn){
+#   cn = colnames(mCounts)[cn]
+#   plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 1', ylab='Log Aligned')
+#   lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+# })
+# dev.off(dev.cur())
+# 
+# x = dfERCC$Mix_2
+# pdf('Temp/mix2.pdf')
+# par(mfrow=c(3, 3))
+# sapply(1:ncol(mCounts), function(cn){
+#   cn = colnames(mCounts)[cn]
+#   plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 2', ylab='Log Aligned')
+#   lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+# })
+# dev.off(dev.cur())
 
 # perform a principal components analysis (PCA) based on the quality metrics for each cell
 # drop the samples from the main annotation data.frame
@@ -187,6 +187,7 @@ temp$f = f
 plotPCA(temp, pca_data_input="pdata", colour_by='f')
 
 ## PCA on non-normalized data 
+par(p.old)
 mCounts = counts(oSce)
 n = dim(mCounts)[1] * dim(mCounts)[2]
 mCounts = mCounts + rnorm(n)
@@ -252,7 +253,7 @@ bKeep = ave.counts >= 1
 table(bKeep)
 # FALSE  TRUE 
 # 16983  8330 
-
+par(p.old)
 hist(log10(ave.counts), breaks=100, main="", col="grey80",
      xlab=expression(Log[10]~"average count"))
 abline(v=log10(1), col="blue", lwd=2, lty=2)
@@ -330,7 +331,7 @@ oSce = computeSumFactors(oSce, sizes=c(10, 20, 25))
 summary(sizeFactors(oSce))
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 # 0.1221  0.5531  0.8318  1.0000  1.1320  4.4500
-
+par(p.old)
 plot(sizeFactors(oSce), oSce$total_counts/1e6, log="xy", pch=20,
      ylab="Library size (millions)", xlab="Size factor", col=col, 
      main='Non linear trend between total count and size factor')
@@ -370,6 +371,18 @@ sapply(1:nrow(mCoverage), function(x) {
   plot(lowess(mCoverage[x,], f=1/10), xaxt='n', xlab='5 to 3 prime binned transcript', ylab='Coverage', type='l', lwd=2,
        main=paste(rownames(mCoverage)[x]), ylim=c(0, 1))
   axis(1, at = c(1, 2000), labels = c('5', '3'), tick = T)})
+par(mfrow=c(1,1))
+plot(lowess(mCoverage[1,], f=1/10), xaxt='n', xlab='5 to 3 prime binned transcript', ylab='Coverage', type='l', lwd=2,
+     main='Average Transcript Coverage', ylim=c(0, 1))
+sapply(2:nrow(mCoverage), function(x) {
+  lines(lowess(mCoverage[x,], f=1/10), lwd=2)})
+axis(1, at = c(1, 2000), labels = c('5', '3'), tick = T)
+plot(lowess(colMeans(mCoverage), f=1/10), xaxt='n', xlab='5 to 3 prime binned transcript', ylab='Coverage', type='l', lwd=2,
+     main='Average Transcript Coverage', ylim=c(0, 1))
+axis(1, at = c(1, 2000), labels = c('5', '3'), tick = T)
+sapply(1:nrow(mCoverage), function(x) {
+  lines(lowess(mCoverage[x,], f=1/10), lwd=0.5, col='grey')})
+
 dev.off(dev.cur())
 
 ### load the human genome package
@@ -407,10 +420,10 @@ fSamples = factor(dfSample.names$group1)
 col.p = rainbow(length(unique(fSamples)))
 col = col.p[as.numeric(fSamples)]
 
-plot(pData(oSce.F)$size_factor, pData(oSce.F)$size_factor_ERCC, pch=20, xlab='Gene based size factor', col=col,
-     ylab='ERCC size factor', main='Comparisons of two size factors')
-text(pData(oSce.F)$size_factor, pData(oSce.F)$size_factor_ERCC, labels = dfSample.names$title, pos = 1, cex=0.6)
-lines(lowess(pData(oSce.F)$size_factor, pData(oSce.F)$size_factor_ERCC), lwd=2)
+plot(pData(oSce.F)$size_factor_ERCC, pData(oSce.F)$size_factor, pch=20, xlab='ERCC size factor', col=col,
+     ylab='Gene based size factor', main='Comparisons of two size factors', log='xy')
+text(pData(oSce.F)$size_factor_ERCC, pData(oSce.F)$size_factor, labels = dfSample.names$title, pos = 1, cex=0.6)
+lines(lowess(pData(oSce.F)$size_factor_ERCC, pData(oSce.F)$size_factor), lwd=2)
 
 ## PCA on normalized data without spike-in 
 mCounts = exprs(oSce.F)
@@ -485,169 +498,207 @@ legend('bottomright', legend = unique(fSamples), fill=col.p[as.numeric(unique(fS
 
 #################################################
 ### ERCC correlation check after normalization
-mCounts = exprs(oSce.T)
-dim(mCounts)
-dfERCC = read.csv('~/Data/MetaData/ERCC_concentrations.csv', header=T, sep='\t', stringsAsFactors = F)
-i2 = grepl(pattern = '^ERCC', rownames(mCounts))
-table(i2)
-mCounts = mCounts[i2,]
-dfERCC = dfERCC[dfERCC$ERCC_ID %in% rownames(mCounts),]
-# order the matrix in the same order as the ERCC names in the dataframe
-i = match(dfERCC$ERCC_ID, rownames(mCounts))
-mCounts = mCounts[i,]
-# sanity check
-identical(rownames(mCounts), dfERCC$ERCC_ID)
-
-x = dfERCC$Mix_1
-pdf('Temp/mix1_norm.pdf')
-par(mfrow=c(3, 3))
-sapply(1:ncol(mCounts), function(cn){
-  cn = colnames(mCounts)[cn]
-  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 1', ylab='Log Aligned')
-  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
-})
-dev.off(dev.cur())
-
-x = dfERCC$Mix_2
-pdf('Temp/mix2_norm.pdf')
-par(mfrow=c(3, 3))
-sapply(1:ncol(mCounts), function(cn){
-  cn = colnames(mCounts)[cn]
-  plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 2', ylab='Log Aligned')
-  lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
-})
-dev.off(dev.cur())
+# mCounts = exprs(oSce.T)
+# dim(mCounts)
+# dfERCC = read.csv('~/Data/MetaData/ERCC_concentrations.csv', header=T, sep='\t', stringsAsFactors = F)
+# i2 = grepl(pattern = '^ERCC', rownames(mCounts))
+# table(i2)
+# mCounts = mCounts[i2,]
+# dfERCC = dfERCC[dfERCC$ERCC_ID %in% rownames(mCounts),]
+# # order the matrix in the same order as the ERCC names in the dataframe
+# i = match(dfERCC$ERCC_ID, rownames(mCounts))
+# mCounts = mCounts[i,]
+# # sanity check
+# identical(rownames(mCounts), dfERCC$ERCC_ID)
+# 
+# x = dfERCC$Mix_1
+# pdf('Temp/mix1_norm.pdf')
+# par(mfrow=c(3, 3))
+# sapply(1:ncol(mCounts), function(cn){
+#   cn = colnames(mCounts)[cn]
+#   plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 1', ylab='Log Aligned')
+#   lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+# })
+# dev.off(dev.cur())
+# 
+# x = dfERCC$Mix_2
+# pdf('Temp/mix2_norm.pdf')
+# par(mfrow=c(3, 3))
+# sapply(1:ncol(mCounts), function(cn){
+#   cn = colnames(mCounts)[cn]
+#   plot(log(x), log(mCounts[,cn]+1), pch=20, main=paste(cn), xlab='Log ERCC concentration Mix 2', ylab='Log Aligned')
+#   lines(lowess(log(x), log(mCounts[,cn]+1)), lwd=2)
+# })
+# dev.off(dev.cur())
 
 
 ############## some additional QC checks with distribution of gene expressions
-# get the mean vector and total vector for each sample
 mCounts.s = exprs(oSce.T)
-ivMean = colMeans(mCounts.s)
-ivTotal = colSums(mCounts.s)
+ivMean.spike = colMeans(mCounts.s)
 
-dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$group1)
-library(lattice)
-
-densityplot(~ ivMean, data=dfData, groups=condition, auto.key=TRUE, main='Average Gene Expression Density in Each Phenotype',
-            xlab='Mean Gene Expression')
-
-dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, SPIKE-IN Normalised',
-        xlab='Groups', ylab='Mean Expression', pch=20, cex.axis=0.7)
-
-dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$phenotype)
-dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, SPIKE-IN Normalised',
-        xlab='Groups', ylab='Mean Expression', pch=20, scales=list(x=list(cex=0.5, rot=45)))
-
-#########################
-i = which(ivMean > 1.4)
-dfData[i,]
-
-## repeat with gene normalized data
 mCounts.s = exprs(oSce.F)
-ivMean = colMeans(mCounts.s)
-ivTotal = colSums(mCounts.s)
+ivMean.gene = colMeans(mCounts.s)
 
-dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$group1)
+mCounts.s = log(counts(oSce.F)+1)
+ivMean.raw = colMeans(mCounts.s)
+
+dfData = data.frame(Spike=ivMean.spike, Gene=ivMean.gene, Raw=ivMean.raw, Plate=dfSample.names$group1, Title=dfSample.names$title)
+dfData.st = stack(dfData)
+dfData.st$Plate = dfData$Plate
+dfData.st$Title = dfData$Title
 library(lattice)
-
-densityplot(~ ivMean, data=dfData, groups=condition, auto.key=TRUE, main='Average Gene Expression Density in Each Phenotype',
+densityplot(~ values, data=dfData.st, groups=ind, auto.key=TRUE, main='Average Gene Expression Density before & after normalization',
             xlab='Mean Gene Expression')
 
-dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
-        xlab='Groups', ylab='Mean Expression', pch=20, cex.axis=0.7)
+dotplot(values ~ Title, data=dfData.st, auto.key=list(columns=3), main='Average Gene Expression in Each Sample, Normalised', type='b', groups=ind,
+        par.settings=list(superpose.line = list(lwd=0.5, lty=1)),
+        xlab='Plates', ylab='Mean Expression', pch=20, scales=list(x=list(cex=0.7, rot=45)))
 
-dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$phenotype)
-c = c('black', 'red')
-c = c[as.numeric(factor(dfSample.names$group1))]
-dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
-        xlab='Groups', ylab='Mean Expression', pch=20, col=c, scales=list(x=list(cex=0.8, rot=45)))
+#### save the results to database
+oSce.F$dbID_Sample = dfSample.names$sid
+n = make.names(paste('Scater object for louisa single cell data gene normalized rds'))
+n2 = paste0('~/Data/MetaData/', n)
+# save(oSce.F, file=n2)
+# 
+# # comment out as this has been done once
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='Scater object for louisa single cell data gene normalized')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
+
+
+# # get the mean vector and total vector for each sample
+# mCounts.s = exprs(oSce.T)
+# ivMean = colMeans(mCounts.s)
+# ivTotal = colSums(mCounts.s)
+# 
+# dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$group1)
+# library(lattice)
+# 
+# densityplot(~ ivMean, data=dfData, groups=condition, auto.key=TRUE, main='Average Gene Expression Density in Each Phenotype',
+#             xlab='Mean Gene Expression')
+# 
+# dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, SPIKE-IN Normalised',
+#         xlab='Groups', ylab='Mean Expression', pch=20, cex.axis=0.7)
+# 
+# dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$phenotype)
+# dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, SPIKE-IN Normalised',
+#         xlab='Groups', ylab='Mean Expression', pch=20, scales=list(x=list(cex=0.5, rot=45)))
+# 
+# #########################
+# i = which(ivMean > 1.4)
+# dfData[i,]
+# 
+# ## repeat with gene normalized data
+# mCounts.s = exprs(oSce.F)
+# ivMean = colMeans(mCounts.s)
+# ivTotal = colSums(mCounts.s)
+# 
+# dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$group1)
+# library(lattice)
+# 
+# densityplot(~ ivMean, data=dfData, groups=condition, auto.key=TRUE, main='Average Gene Expression Density in Each Phenotype',
+#             xlab='Mean Gene Expression')
+# 
+# dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
+#         xlab='Groups', ylab='Mean Expression', pch=20, cex.axis=0.7)
+# 
+# dfData = data.frame(ivMean, ivTotal, condition = dfSample.names$phenotype)
+# c = c('black', 'red')
+# c = c[as.numeric(factor(dfSample.names$group1))]
+# dotplot(ivMean ~ condition, data=dfData, auto.key=TRUE, main='Average Gene Expression in Each Sample, Normalised',
+#         xlab='Groups', ylab='Mean Expression', pch=20, col=c, scales=list(x=list(cex=0.8, rot=45)))
 
 ## perform a statistical test if the distances between the two groups sharing capture sites are same or different
-f = table(dfData$condition)
-f = which(f > 1); f = names(f)
-fGroups = as.character(dfData$condition)
-f = which(as.character(dfData$condition) %in% f)
-fGroups[-f] = 'UniqueCapture'
-dfData$fGroups = fGroups
-fGroups = factor(fGroups)
-iDist = tapply(dfData$ivMean, fGroups, function(x) abs(as.vector(dist(x))))
-iDist.2 = iDist$UniqueCapture
-iDist$UniqueCapture = NULL
-iDist.1 = as.vector(do.call(cbind, iDist))
-t.test(iDist.2, iDist.1)
-par(p.old)
-l = c(rep(0, times=length(iDist.1)), rep(1, times=length(iDist.2)))
-boxplot(c(iDist.1, iDist.2) ~ l, main='Distance between 2 groups', xlab='Groups', ylab='Distance', xaxt='n')
-axis(1, at = c(1, 2), labels = c('Shared', 'Unique'), las=2)
-stripchart(c(iDist.1, iDist.2) ~ l, vertical=T, method='jitter', add=T, pch=20)
+# f = table(dfData$condition)
+# f = which(f > 1); f = names(f)
+# fGroups = as.character(dfData$condition)
+# f = which(as.character(dfData$condition) %in% f)
+# fGroups[-f] = 'UniqueCapture'
+# dfData$fGroups = fGroups
+# fGroups = factor(fGroups)
+# iDist = tapply(dfData$ivMean, fGroups, function(x) abs(as.vector(dist(x))))
+# iDist.2 = iDist$UniqueCapture
+# iDist$UniqueCapture = NULL
+# iDist.1 = as.vector(do.call(cbind, iDist))
+# t.test(iDist.2, iDist.1)
+# par(p.old)
+# l = c(rep(0, times=length(iDist.1)), rep(1, times=length(iDist.2)))
+# boxplot(c(iDist.1, iDist.2) ~ l, main='Distance between 2 groups', xlab='Groups', ylab='Distance', xaxt='n')
+# axis(1, at = c(1, 2), labels = c('Shared', 'Unique'), las=2)
+# stripchart(c(iDist.1, iDist.2) ~ l, vertical=T, method='jitter', add=T, pch=20)
 
 #########################
-i = which(ivMean > 1.4)
-dfData[i,]
-
-### samples that share the same capture site
-m = as.matrix(xtabs( ~ group1 + phenotype, data=dfSample.names))
-m = colSums(m)
-i = which(m > 1)
-i2 = which(dfSample.names$phenotype %in% names(i))
-
-## PCA on this data but colour by capture sites that are shared
-mCounts = exprs(oSce.F)
-# n = dim(mCounts)[1] * dim(mCounts)[2]
-# mCounts = mCounts + rnorm(n)
-
-#### standardize samples first
-s = apply(mCounts, 2, sd)
-mCounts.s = sweep(mCounts, 2, s, '/')
-
-## PCA with strandardizing samples
-mCounts.s = t(mCounts.s)
-# set scaling to FALSE to scale variables i.e. genes in columns
-pr.out = prcomp(mCounts.s, scale = F)
-
-# set the factor for colours
-## unique colours for matching plates
-fLab = as.character(dfSample.names$phenotype)
-i = which(as.numeric(table(fLab)) == 2)
-n = names(table(fLab))[i]
-## these particular names shoud be set to the same level as they are not duplicated
-fLab[!fLab %in% n] = 'C00'
-
-g1 = factor(fLab)
-iCol = rainbow(nlevels(g1))
-iCol[1] = 'lightgrey'
-col = iCol[as.numeric(g1)]
-
-plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
-     main='PCA comp 1 and 2, Coloured on Shared Capture Sites')
-text(pr.out$x[i2,1:2], labels = dfSample.names$title[i2], pos = 1, cex=0.8)
+# i = which(ivMean > 1.4)
+# dfData[i,]
+# 
+# ### samples that share the same capture site
+# m = as.matrix(xtabs( ~ group1 + phenotype, data=dfSample.names))
+# m = colSums(m)
+# i = which(m > 1)
+# i2 = which(dfSample.names$phenotype %in% names(i))
+# 
+# ## PCA on this data but colour by capture sites that are shared
+# mCounts = exprs(oSce.F)
+# # n = dim(mCounts)[1] * dim(mCounts)[2]
+# # mCounts = mCounts + rnorm(n)
+# 
+# #### standardize samples first
+# s = apply(mCounts, 2, sd)
+# mCounts.s = sweep(mCounts, 2, s, '/')
+# 
+# ## PCA with strandardizing samples
+# mCounts.s = t(mCounts.s)
+# # set scaling to FALSE to scale variables i.e. genes in columns
+# pr.out = prcomp(mCounts.s, scale = F)
+# 
+# # set the factor for colours
+# ## unique colours for matching plates
+# fLab = as.character(dfSample.names$phenotype)
+# i = which(as.numeric(table(fLab)) == 2)
+# n = names(table(fLab))[i]
+# ## these particular names shoud be set to the same level as they are not duplicated
+# fLab[!fLab %in% n] = 'C00'
+# 
+# g1 = factor(fLab)
+# iCol = rainbow(nlevels(g1))
+# iCol[1] = 'lightgrey'
+# col = iCol[as.numeric(g1)]
+# 
+# plot(pr.out$x[,1:2], col=col, pch=19, xlab='Z1', ylab='Z2',
+#      main='PCA comp 1 and 2, Coloured on Shared Capture Sites')
+# text(pr.out$x[i2,1:2], labels = dfSample.names$title[i2], pos = 1, cex=0.8)
 
 ###### association between proportion of reads aligned to ERCC vs Genes
 ## get count matrix
-mCounts = counts(oSce.T)
-
-i2 = grepl(pattern = '^ERCC', rownames(mCounts))
-table(i2)
-m1 = mCounts[i2,]
-m2 = mCounts[!i2,]
-m1 = colSums(m1)
-m2 = colSums(m2)
-mCounts = rbind(m1, m2)
-rownames(mCounts) = c('ERCC', 'Genes')
-fSamples = factor(dfSample.names$group1)
-col.p = rainbow(length(unique(fSamples)))
-col = col.p[as.numeric(fSamples)]
-
-plot(t(mCounts), pch=20, main='Reads aligned to genes vs Spike-in', col=col)
-text(t(mCounts), labels = colnames(mCounts), pos = 1, cex=0.6)
-
-cs = colSums(mCounts)
-mCounts = sweep(mCounts, 2, cs, '/')
-i = which(mCounts['ERCC',] < 0.041)
-
-b = barplot((mCounts), xaxt='n', main='Proportion of reads aligned to ERCC (Black) and Genes (Grey)')
-axis(1, at = b[-i], labels=colnames(mCounts)[-i], tick = F, las=2, cex.axis=0.6)
-axis(1, at = b[i], labels=colnames(mCounts)[i], tick = F, las=2, cex.axis=0.6, col.axis='red')
+# mCounts = counts(oSce.T)
+# 
+# i2 = grepl(pattern = '^ERCC', rownames(mCounts))
+# table(i2)
+# m1 = mCounts[i2,]
+# m2 = mCounts[!i2,]
+# m1 = colSums(m1)
+# m2 = colSums(m2)
+# mCounts = rbind(m1, m2)
+# rownames(mCounts) = c('ERCC', 'Genes')
+# fSamples = factor(dfSample.names$group1)
+# col.p = rainbow(length(unique(fSamples)))
+# col = col.p[as.numeric(fSamples)]
+# 
+# plot(t(mCounts), pch=20, main='Reads aligned to genes vs Spike-in', col=col)
+# text(t(mCounts), labels = colnames(mCounts), pos = 1, cex=0.6)
+# 
+# cs = colSums(mCounts)
+# mCounts = sweep(mCounts, 2, cs, '/')
+# i = which(mCounts['ERCC',] < 0.041)
+# 
+# b = barplot((mCounts), xaxt='n', main='Proportion of reads aligned to ERCC (Black) and Genes (Grey)')
+# axis(1, at = b[-i], labels=colnames(mCounts)[-i], tick = F, las=2, cex.axis=0.6)
+# axis(1, at = b[i], labels=colnames(mCounts)[i], tick = F, las=2, cex.axis=0.6, col.axis='red')
 
 
 

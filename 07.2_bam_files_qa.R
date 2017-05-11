@@ -75,14 +75,14 @@ n2 = paste0('~/Data/MetaData/', n)
 save(lAllBams, file=n2)
 
 # comment out as this has been done once
-library('RMySQL')
-db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
-dbListTables(db)
-dbListFields(db, 'MetaFile')
-df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
-                comment='CBamScaffold object from louisa single cell sequencing run in original form and strict settings on trimmomatic')
-dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
-dbDisconnect(db)
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='CBamScaffold object from louisa single cell sequencing run in original form and strict settings on trimmomatic')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
 
 ### create the plots of interest
 getwd()
