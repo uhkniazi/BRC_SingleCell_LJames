@@ -117,7 +117,7 @@ tryCombinations = function(iCombinationIndex){
   fit.lap = laplace(mylogpost, start, lData)
   ### lets take a sample from this 
   ## parameters for the multivariate t density
-  tpar = list(m=fit.lap$mode, var=fit.lap$var*2, df=5)
+  tpar = list(m=fit.lap$mode, var=fit.lap$var*2, df=4)
   ## get a sample directly and using sir (sampling importance resampling with a t proposal density)
   s = sir(mylogpost, tpar, 5000, lData)
   colnames(s) = colnames(lData$mModMatrix)
@@ -127,7 +127,7 @@ tryCombinations = function(iCombinationIndex){
   post = apply(s, 2, mean)
   
   # calculate AIC
-  iAIC = (lpd(post, lData) - 4) * -2
+  iAIC = (lpd(post, lData) - length(start)) * -2
   
   # calculate E(lpd(theta))
   eLPD = mean(sapply(1:nrow(s), function(x) lpd(s[x,], lData)))
