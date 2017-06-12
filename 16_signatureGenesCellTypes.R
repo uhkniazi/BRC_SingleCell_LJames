@@ -35,6 +35,252 @@ mCounts.norm = mCounts.norm[mCounts.norm$Code.Class == 'Endogenous', ]
 rownames(mCounts.norm) = mCounts.norm$Name
 mCounts = as.matrix(mCounts.norm[,-c(1:3)])
 
+dim(mCounts)
+i = which(rowSums(mCounts) == 0)
+mCounts = mCounts[-i,]
+dim(mCounts)
+mCounts = scale(t(mCounts))
+head(apply(mCounts, 2, sd))
+
+############### follow the regression based approach
+## remove correlated variables first
+## find correlated variables
+mCor = cor(mCounts, use="na.or.complete")
+library(caret)
+### find the columns that are correlated and should be removed
+n = findCorrelation((mCor), cutoff = 0.6, names=T)
+data.frame(n)
+sapply(n, function(x) {
+  (abs(mCor[,x]) >= 0.7)
+})
+i = which(colnames(mCounts) %in% n)
+cvTopGenes = colnames(mCounts)[-i]
+
+mCounts = mCounts[,cvTopGenes]
+rm(mCor)
+gc()
+
+########## perform binomial regression with shrinkage 
+###### on each category 
+dfData = data.frame(mCounts)
+colnames(dfData) = gsub('\\.', '_', colnames(dfData))
+
+## generate the combination matrix
+## using 3 variables at the most i.e. log(18)
+mCombinations = combn(cvTopGenes, 3)
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'CD19'] = 1
+fGroups[dfData$fCellID != 'CD19'] = 0
+
+dfData$fCellID = factor(fGroups)
+
+
+## setup functions to fit model and calculate log posterior
+## and log likelihood
+logit.inv = function(p) {exp(p)/(exp(p)+1) }
+
+## lets write a custom glm using a bayesian approach
+## write the log posterior function
+mylogpost = function(theta, data){
+  betas = theta # vector of betas i.e. regression coefficients for population
+  ## data
+  resp = data$resp # resp
+  mModMatrix = data$mModMatrix
+  
+  # calculate fitted value
+  iFitted = mModMatrix %*% betas
+  # using logit link so use inverse logit
+  iFitted = logit.inv(iFitted)
+  # write the priors and likelihood
+  lp = dnorm(betas[1], 0, 10, log=T) + sum(dnorm(betas[-1], 0, 10, log=T))
+  lik = sum(dbinom(resp, 1, iFitted, log=T))
+  val = lik + lp
+  return(val)
+}
+
+library(LearnBayes)
+source('utilities.R')
+
+lFits.3var = lapply(1:ncol(mCombinations), function(iCombinationIndex){
+  ## setup the data
+  f = paste('fCellID ~ ', paste(mCombinations[,iCombinationIndex], collapse='+'), collapse = ' ')
+  lData = list(resp=ifelse(dfData$fCellID == 0, 0, 1),
+               mModMatrix=model.matrix(as.formula(f), data=dfData))
+  
+  # set starting values for optimiser
+  start = c(rep(0, times=ncol(lData$mModMatrix)))
+  # fit model
+  fit.lap = laplace(mylogpost, start, lData)
+  ### lets take a sample from this 
+  ## parameters for the multivariate t density
+  tpar = list(m=fit.lap$mode, var=fit.lap$var*2, df=4)
+  ## get a sample directly and using sir (sampling importance resampling with a t proposal density)
+  s = sir(mylogpost, tpar, 5000, lData)
+  colnames(s) = colnames(lData$mModMatrix)
+  fit.lap$sir = s
+  
+  ## averages of posterior from sir sample
+  post = apply(s, 2, mean)
+  
+  # calculate AIC
+  iAIC = (lpd(post, lData) - 4) * -2
+  
+  # calculate E(lpd(theta))
+  eLPD = mean(sapply(1:nrow(s), function(x) lpd(s[x,], lData)))
+  
+  # calclate ilppd
+  ilppd = sum(log(sapply(seq_along(lData$resp), function(x) {
+    d = list(resp=lData$resp[x], mModMatrix = lData$mModMatrix[x,])
+    lppd(s, d)
+  })))
+  
+  ## effective numbers of parameters pWAIC1
+  pWAIC1 = 2 * (ilppd - eLPD)
+  
+  iWAIC = -2 * (ilppd - pWAIC1)
+  
+  fit.lap$modelCheck = list('AIC'=iAIC, 'pWAIC1'=pWAIC1, 'WAIC'=iWAIC)
+  return(fit.lap)
+})
+
+
+
+
+fit.bin = glm(as.formula(f), data=dfData, family = binomial(link='logit'))
+summary(fit.bin)
+
+
+
+# library(car)
+# ## utility function to calculate hyper-prior variance parameters
+# ## gamma shape function
+# ## this function is from the book: Bayesian data analysis
+# gammaShRaFromModeSD = function( mode , sd ) {
+#   # function changed a little to return jeffery non-informative prior
+#   if ( mode <=0 || sd <=0 ) return( list( shape=0.5 , rate=0.0001 ) ) 
+#   rate = ( mode + sqrt( mode^2 + 4 * sd^2 ) ) / ( 2 * sd^2 )
+#   shape = 1 + mode * rate
+#   return( list( shape=shape , rate=rate ) )
+# }
+# unlist(gammaShRaFromModeSD(mode = logit(sd(lData$resp+0.5)/2), 
+#                            sd = logit(2*sd(lData$resp+0.5))))
+
+
+## try with stan first
+library(rstan)
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
+stanDso = rstan::stan_model(file='binomialRegression.stan')
+
+lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
+                 y=lData$resp)
+
+fit.stan = sampling(stanDso, data=lStanData, iter=5000, chains=3, 
+                    pars=c('betas'), cores=3)
+# some diagnostics for stan
+print(fit.stan, digits=3)
+plot(fit.stan)
+m = extract(fit.stan)
+b = m$betas
+s = m$betaSigma
+
+
+
+traceplot(fit.stan, ncol=1, nrow=6, inc_warmup=F)
+#stan_diag(fit.stan)
+## some sample diagnostic plots
+library(coda)
+oCoda = As.mcmc.list(fit.stan)
+xyplot(oCoda[[1]])
+autocorr.plot(oCoda[[1]])
+
+
+
+
+
+
+
+## lets write a custom glm using a bayesian approach
+## write the log posterior function
+mylogpost = function(theta, data){
+  ## parameters to track/estimate
+  betas = theta # vector of betas i.e. regression coefficients for population
+  ## data
+  resp = data$resp # resp
+  mModMatrix = data$mModMatrix
+  
+  # calculate fitted value
+  iFitted = mModMatrix %*% betas
+  # using logit link so use inverse logit
+  iFitted = logit.inv(iFitted)
+  # write the priors and likelihood 
+  lp = dcauchy(betas[1], 0, 10, log=T) + sum(dcauchy(betas[-1], 0, 10, log=T))
+  lik = sum(dbinom(resp, 1, iFitted, log=T))
+  val = lik + lp
+  return(val)
+}
+
+## set starting values and data
+f = paste('fCellID ~ ', paste(colnames(dfData)[1:2], collapse='+'), collapse = ' ')
+lData = list(resp=ifelse(dfData$fCellID == 0, 0, 1), mModMatrix=model.matrix(fCellID ~  ., data=dfData))
+
+start = c(betas=rep(0, times=ncol(lData$mModMatrix)))
+
+mylogpost(start, lData)
+
+fit.lap = laplace(mylogpost, start, lData)
+op = optimx(start, mylogpost, control = list(maximize=T, usenumDeriv=T, all.methods=T), data=lData)
+summary(op) ##rvmmin seems to converge better
+
+library(rstan)
+stanDso = rstan::stan_model(file='binomialRegression.stan')
+
+lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
+                 y=lData$resp)
+
+fit.stan = sampling(stanDso, data=lStanData, iter=5000, chains=4, pars=c('betas', 'betaSigma'))
+# some diagnostics for stan
+print(fit.stan, digits=3)
+plot(fit.stan)
+traceplot(fit.stan, ncol=1, nrow=6, inc_warmup=F)
+#stan_diag(fit.stan)
+## some sample diagnostic plots
+library(coda)
+oCoda = As.mcmc.list(fit.stan)
+xyplot(oCoda[[1]])
+autocorr.plot(oCoda[[1]])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+################################ old
+
+
 dfData = data.frame(t(mCounts))
 ## add the cell type id
 dfData$fCellID = factor(lNanoString$metaData$group2)
