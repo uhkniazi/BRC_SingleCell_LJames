@@ -35,3 +35,12 @@ lppd = function(theta, data){
   return(mean(dbinom(resp, 1, iFitted, log=F)))
 }
 
+getStanSD = function(obj){
+  return(apply(extract(obj)$betas, 2, sd))
+}
+getStanMean = function(obj){
+  return(apply(extract(obj)$betas, 2, mean))
+}
+getStanPValue = function(obj){
+  pnorm(-abs(getStanMean(obj)/getStanSD(obj)))*2
+}

@@ -65,9 +65,6 @@ gc()
 dfData = data.frame(mCounts)
 colnames(dfData) = gsub('\\.', '_', colnames(dfData))
 
-## generate the combination matrix
-## using 3 variables at the most i.e. log(18)
-mCombinations = combn(cvTopGenes, 3)
 
 ## add the cell type id
 dfData$fCellID = lNanoString$metaData$group2
@@ -106,8 +103,8 @@ mylogpost = function(theta, data){
 
 library(LearnBayes)
 source('utilities.R')
-
-lFits.3var = lapply(1:ncol(mCombinations), function(iCombinationIndex){
+library(parallel)
+tryCombinations = function(iCombinationIndex){
   ## setup the data
   f = paste('fCellID ~ ', paste(mCombinations[,iCombinationIndex], collapse='+'), collapse = ' ')
   lData = list(resp=ifelse(dfData$fCellID == 0, 0, 1),
@@ -115,15 +112,16 @@ lFits.3var = lapply(1:ncol(mCombinations), function(iCombinationIndex){
   
   # set starting values for optimiser
   start = c(rep(0, times=ncol(lData$mModMatrix)))
+  names(start) = colnames(lData$mModMatrix)
   # fit model
   fit.lap = laplace(mylogpost, start, lData)
   ### lets take a sample from this 
   ## parameters for the multivariate t density
-  tpar = list(m=fit.lap$mode, var=fit.lap$var*2, df=4)
+  tpar = list(m=fit.lap$mode, var=fit.lap$var*2, df=5)
   ## get a sample directly and using sir (sampling importance resampling with a t proposal density)
   s = sir(mylogpost, tpar, 5000, lData)
   colnames(s) = colnames(lData$mModMatrix)
-  fit.lap$sir = s
+  #fit.lap$sir = s
   
   ## averages of posterior from sir sample
   post = apply(s, 2, mean)
@@ -147,11 +145,150 @@ lFits.3var = lapply(1:ncol(mCombinations), function(iCombinationIndex){
   
   fit.lap$modelCheck = list('AIC'=iAIC, 'pWAIC1'=pWAIC1, 'WAIC'=iWAIC)
   return(fit.lap)
+}
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(cvTopGenes, 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
 })
 
 
+mCombinations = combn(cvTopGenes, 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(cvTopGenes, 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(cvTopGenes, 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+lCD19 = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+names(lFits.1var) = 1:length(lFits.1var)
+mOne = t(do.call(cbind, lapply(lFits.1var, function(x) unlist(x$modelCheck))))
+
+names(lFits.2var) = 1:length(lFits.2var)
+mTwo = t(do.call(cbind, lapply(lFits.2var, function(x) unlist(x$modelCheck))))
+
+names(lFits.3var) = 1:length(lFits.3var)
+mThree = t(do.call(cbind, lapply(lFits.3var, function(x) unlist(x$modelCheck))))
+
+names(lFits.4var) = 1:length(lFits.4var)
+mFour = t(do.call(cbind, lapply(lFits.4var, function(x) unlist(x$modelCheck))))
+
+iAIC = c(min(mOne[,'AIC']), min(mTwo[,'AIC']), min(mThree[,'AIC']), min(mFour[,'AIC']))
+pWAIC = c(min(mOne[,'pWAIC1']), min(mTwo[,'pWAIC1']), min(mThree[,'pWAIC1']), min(mFour[,'pWAIC1']))
+WAIC = c(min(mOne[,'WAIC']), min(mTwo[,'WAIC']), min(mThree[,'WAIC']), min(mFour[,'WAIC']))
 
 
+
+
+lFits.3var = lapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+table(sapply(lFits.3var, is.null))
+
+lFits.3var$mCombinations = mCombinations
+names(lFits.3var) = 1:(length(lFits.3var)-1)
+lFits.3var.sub = lFits.3var[!sapply(lFits.3var, is.null)]
+length(lFits.3var.sub)
+
+iWAIC3v = sapply(1:(length(lFits.3var.sub)-1), function(x){
+  lFits.3var.sub[[x]]$modelCheck$WAIC
+})
+
+iWAIC3v.param = sapply(1:(length(lFits.3var.sub)-1), function(x){
+  lFits.3var.sub[[x]]$modelCheck$pWAIC
+})
+
+iAIC3v = sapply(1:(length(lFits.3var.sub)-1), function(x){
+  lFits.3var.sub[[x]]$modelCheck$AIC
+})
+
+mFitParam.3v = cbind(iWAIC3v, iWAIC3v.param, iAIC3v)
+rownames(mFitParam.3v) = names(lFits.3var.sub)[1:(length(lFits.3var.sub)-1)]
+
+########### try 2 variables
+mCombinations = combn(cvTopGenes, 2)
+
+lFits.2var = lapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+table(sapply(lFits.2var, is.null))
+
+lFits.2var$mCombinations = mCombinations
+names(lFits.2var) = 1:(length(lFits.2var)-1)
+lFits.2var.sub = lFits.2var[!sapply(lFits.2var, is.null)]
+length(lFits.2var.sub)
+
+iWAIC2v = sapply(1:(length(lFits.2var.sub)-1), function(x){
+  lFits.2var.sub[[x]]$modelCheck$WAIC
+})
+
+iWAIC2v.param = sapply(1:(length(lFits.2var.sub)-1), function(x){
+  lFits.2var.sub[[x]]$modelCheck$pWAIC
+})
+
+iAIC2v = sapply(1:(length(lFits.2var.sub)-1), function(x){
+  lFits.2var.sub[[x]]$modelCheck$AIC
+})
+
+mFitParam.2v = cbind(iWAIC2v, iWAIC2v.param, iAIC2v)
+rownames(mFitParam.2v) = names(lFits.2var.sub)[1:(length(lFits.2var.sub)-1)]
+
+
+########### try 4 variables
+mCombinations = combn(cvTopGenes, 4)
+
+library(parallel)
+
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+table(sapply(lFits.4var, is.null))
+
+lFits.4var$mCombinations = mCombinations
+names(lFits.4var) = 1:(length(lFits.4var)-1)
+lFits.4var.sub = lFits.4var[!sapply(lFits.4var, is.null)]
+length(lFits.4var.sub)
+
+iWAIC4v = sapply(1:(length(lFits.4var.sub)-1), function(x){
+  lFits.4var.sub[[x]]$modelCheck$WAIC
+})
+
+iWAIC4v.param = sapply(1:(length(lFits.4var.sub)-1), function(x){
+  lFits.4var.sub[[x]]$modelCheck$pWAIC
+})
+
+iAIC4v = sapply(1:(length(lFits.4var.sub)-1), function(x){
+  lFits.4var.sub[[x]]$modelCheck$AIC
+})
+
+mFitParam.4v = cbind(iWAIC4v, iWAIC4v.param, iAIC4v)
+rownames(mFitParam.4v) = names(lFits.4var.sub)[1:(length(lFits.4var.sub)-1)]
+
+
+
+
+
+
+
+
+
+f = paste('fCellID ~ ', paste(mCombinations[,7703], collapse='+'), collapse = ' ')
+  
 fit.bin = glm(as.formula(f), data=dfData, family = binomial(link='logit'))
 summary(fit.bin)
 
