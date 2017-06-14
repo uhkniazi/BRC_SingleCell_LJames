@@ -171,126 +171,387 @@ lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
   tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
 })
 
-lCD19 = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
 
 names(lFits.1var) = 1:length(lFits.1var)
-mOne = t(do.call(cbind, lapply(lFits.1var, function(x) unlist(x$modelCheck))))
-
 names(lFits.2var) = 1:length(lFits.2var)
-mTwo = t(do.call(cbind, lapply(lFits.2var, function(x) unlist(x$modelCheck))))
-
 names(lFits.3var) = 1:length(lFits.3var)
-mThree = t(do.call(cbind, lapply(lFits.3var, function(x) unlist(x$modelCheck))))
-
 names(lFits.4var) = 1:length(lFits.4var)
-mFour = t(do.call(cbind, lapply(lFits.4var, function(x) unlist(x$modelCheck))))
+# save the object
+lCD19 = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
 
-iAIC = c(min(mOne[,'AIC']), min(mTwo[,'AIC']), min(mThree[,'AIC']), min(mFour[,'AIC']))
-pWAIC = c(min(mOne[,'pWAIC1']), min(mTwo[,'pWAIC1']), min(mThree[,'pWAIC1']), min(mFour[,'pWAIC1']))
-WAIC = c(min(mOne[,'WAIC']), min(mTwo[,'WAIC']), min(mThree[,'WAIC']), min(mFour[,'WAIC']))
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, GC
+dfData = data.frame(mCounts)
+colnames(dfData) = gsub('\\.', '_', colnames(dfData))
 
 
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
 
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'GC'] = 1
+fGroups[dfData$fCellID != 'GC'] = 0
+table(fGroups, dfData$fCellID)
 
-lFits.3var = lapply(1:ncol(mCombinations), function(iIndexSub) {
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(cvTopGenes, 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
   tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
 })
 
-table(sapply(lFits.3var, is.null))
 
-lFits.3var$mCombinations = mCombinations
-names(lFits.3var) = 1:(length(lFits.3var)-1)
-lFits.3var.sub = lFits.3var[!sapply(lFits.3var, is.null)]
-length(lFits.3var.sub)
-
-iWAIC3v = sapply(1:(length(lFits.3var.sub)-1), function(x){
-  lFits.3var.sub[[x]]$modelCheck$WAIC
-})
-
-iWAIC3v.param = sapply(1:(length(lFits.3var.sub)-1), function(x){
-  lFits.3var.sub[[x]]$modelCheck$pWAIC
-})
-
-iAIC3v = sapply(1:(length(lFits.3var.sub)-1), function(x){
-  lFits.3var.sub[[x]]$modelCheck$AIC
-})
-
-mFitParam.3v = cbind(iWAIC3v, iWAIC3v.param, iAIC3v)
-rownames(mFitParam.3v) = names(lFits.3var.sub)[1:(length(lFits.3var.sub)-1)]
-
-########### try 2 variables
 mCombinations = combn(cvTopGenes, 2)
-
-lFits.2var = lapply(1:ncol(mCombinations), function(iIndexSub) {
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
   tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
 })
 
-table(sapply(lFits.2var, is.null))
-
-lFits.2var$mCombinations = mCombinations
-names(lFits.2var) = 1:(length(lFits.2var)-1)
-lFits.2var.sub = lFits.2var[!sapply(lFits.2var, is.null)]
-length(lFits.2var.sub)
-
-iWAIC2v = sapply(1:(length(lFits.2var.sub)-1), function(x){
-  lFits.2var.sub[[x]]$modelCheck$WAIC
+mCombinations = combn(cvTopGenes, 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
 })
 
-iWAIC2v.param = sapply(1:(length(lFits.2var.sub)-1), function(x){
-  lFits.2var.sub[[x]]$modelCheck$pWAIC
-})
-
-iAIC2v = sapply(1:(length(lFits.2var.sub)-1), function(x){
-  lFits.2var.sub[[x]]$modelCheck$AIC
-})
-
-mFitParam.2v = cbind(iWAIC2v, iWAIC2v.param, iAIC2v)
-rownames(mFitParam.2v) = names(lFits.2var.sub)[1:(length(lFits.2var.sub)-1)]
-
-
-########### try 4 variables
 mCombinations = combn(cvTopGenes, 4)
-
-library(parallel)
-
 lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
   tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
 })
 
-table(sapply(lFits.4var, is.null))
 
-lFits.4var$mCombinations = mCombinations
-names(lFits.4var) = 1:(length(lFits.4var)-1)
-lFits.4var.sub = lFits.4var[!sapply(lFits.4var, is.null)]
-length(lFits.4var.sub)
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lGC = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
 
-iWAIC4v = sapply(1:(length(lFits.4var.sub)-1), function(x){
-  lFits.4var.sub[[x]]$modelCheck$WAIC
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, Mem
+dfData = data.frame(mCounts)
+colnames(dfData) = gsub('\\.', '_', colnames(dfData))
+
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'Mem'] = 1
+fGroups[dfData$fCellID != 'Mem'] = 0
+table(fGroups, dfData$fCellID)
+
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(cvTopGenes, 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
 })
 
-iWAIC4v.param = sapply(1:(length(lFits.4var.sub)-1), function(x){
-  lFits.4var.sub[[x]]$modelCheck$pWAIC
+
+mCombinations = combn(cvTopGenes, 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
 })
 
-iAIC4v = sapply(1:(length(lFits.4var.sub)-1), function(x){
-  lFits.4var.sub[[x]]$modelCheck$AIC
+mCombinations = combn(cvTopGenes, 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
 })
 
-mFitParam.4v = cbind(iWAIC4v, iWAIC4v.param, iAIC4v)
-rownames(mFitParam.4v) = names(lFits.4var.sub)[1:(length(lFits.4var.sub)-1)]
+mCombinations = combn(cvTopGenes, 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
 
 
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lMem = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, Naive
+dfData = data.frame(mCounts)
+colnames(dfData) = gsub('\\.', '_', colnames(dfData))
 
 
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'Naive'] = 1
+fGroups[dfData$fCellID != 'Naive'] = 0
+table(fGroups, dfData$fCellID)
+
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(cvTopGenes, 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
 
 
+mCombinations = combn(cvTopGenes, 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(cvTopGenes, 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(cvTopGenes, 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
 
 
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lNaive = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
 
-f = paste('fCellID ~ ', paste(mCombinations[,7703], collapse='+'), collapse = ' ')
-  
-fit.bin = glm(as.formula(f), data=dfData, family = binomial(link='logit'))
-summary(fit.bin)
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, PB
+dfData = data.frame(mCounts)
+colnames(dfData) = gsub('\\.', '_', colnames(dfData))
+
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'PB'] = 1
+fGroups[dfData$fCellID != 'PB'] = 0
+table(fGroups, dfData$fCellID)
+
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(cvTopGenes, 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+mCombinations = combn(cvTopGenes, 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(cvTopGenes, 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(cvTopGenes, 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lPB = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, PreGC
+dfData = data.frame(mCounts)
+colnames(dfData) = gsub('\\.', '_', colnames(dfData))
+
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'PreGC'] = 1
+fGroups[dfData$fCellID != 'PreGC'] = 0
+table(fGroups, dfData$fCellID)
+
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(cvTopGenes, 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+mCombinations = combn(cvTopGenes, 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(cvTopGenes, 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(cvTopGenes, 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lPreGC = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+## save the objects
+lVarSelection = list(lCD19, lGC, lMem, lNaive, lPB, lPreGC)
+
+n = make.names(paste('Binomial Variable Selection for NanoString Data from louisa single cell project rds'))
+lVarSelection$desc = paste('Binomial Variable Selection for NanoString Data from louisa single cell project', date())
+names(lVarSelection) = c('cd19', 'gc', 'mem', 'naive', 'pb', 'pregc', 'desc')
+n2 = paste0('~/Data/MetaData/', n)
+save(lVarSelection, file=n2)
+
+# comment out as this has been done once
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did2, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='Binomial Variable Selection for NanoString Data from louisa single cell project')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
+
+## check each result
+lFits.1var = lVarSelection$pregc$one
+lFits.2var = lVarSelection$pregc$two
+lFits.3var = lVarSelection$pregc$three
+lFits.4var = lVarSelection$pregc$four
+
+mOne = t(do.call(cbind, lapply(lFits.1var, function(x) unlist(x$modelCheck))))
+
+mTwo = t(do.call(cbind, lapply(lFits.2var, function(x) unlist(x$modelCheck))))
+
+mThree = t(do.call(cbind, lapply(lFits.3var, function(x) unlist(x$modelCheck))))
+
+mFour = t(do.call(cbind, lapply(lFits.4var, function(x) unlist(x$modelCheck))))
+
+# iAIC = c(min(mOne[,'AIC']), min(mTwo[,'AIC']), min(mThree[,'AIC']), min(mFour[,'AIC']))
+# pWAIC = c(min(mOne[,'pWAIC1']), min(mTwo[,'pWAIC1']), min(mThree[,'pWAIC1']), min(mFour[,'pWAIC1']))
+# WAIC = c(min(mOne[,'WAIC']), min(mTwo[,'WAIC']), min(mThree[,'WAIC']), min(mFour[,'WAIC']))
+
+### make some plots
+boxplot(mOne[,'AIC'], mTwo[,'AIC'], mThree[,'AIC'], mFour[,'AIC'])
+boxplot(mOne[,'pWAIC1'], mTwo[,'pWAIC1'], mThree[,'pWAIC1'], mFour[,'pWAIC1'])
+boxplot(mOne[,'WAIC'], mTwo[,'WAIC'], mThree[,'WAIC'], mFour[,'WAIC'])
+
+boxplot(mOne[,'AIC'], mOne[,'WAIC'], mTwo[,'AIC'], mTwo[,'WAIC'], mThree[,'AIC'], mThree[,'WAIC'],
+        mFour[,'AIC'], mFour[,'WAIC'], col=rep(grey.colors(2), times=4), main='Scores for model vs model size',
+        xlab='No. of variables', ylab='Score', xaxt='n', pch=20, cex=0.5)
+axis(1, at = 1:8, labels = c(1, 1, 2, 2, 3, 3, 4, 4))
+legend('bottomleft', legend = c('AIC', 'WAIC'), fill=grey.colors(2))
+
+### select the variables with lowest scores in each model size
+getAICVar = function(m, l){
+  iA = which.min(m[,'AIC'])
+  names(l[[names(iA)]]$mode)[-1]  
+}
+
+getWAICVar = function(m, l){
+  iW = which.min(m[,'WAIC'])
+  names(l[[names(iW)]]$mode)[-1]
+}
+
+lTopVarAIC = list(one= getAICVar(mOne, lFits.1var),
+                  two= getAICVar(mTwo, lFits.2var),
+                  three= getAICVar(mThree, lFits.3var),
+                  four= getAICVar(mFour, lFits.4var))
+
+lTopVarWAIC = list(one= getWAICVar(mOne, lFits.1var),
+                  two= getWAICVar(mTwo, lFits.2var),
+                  three= getWAICVar(mThree, lFits.3var),
+                  four= getWAICVar(mFour, lFits.4var))
+
+#lCD19$topvariables = list(aic=lTopVarAIC, waic=lTopVarWAIC)
+#lGC$topvariables = list(aic=lTopVarAIC, waic=lTopVarWAIC)
+#lMem$topvariables = list(aic=lTopVarAIC, waic=lTopVarWAIC)
+#lNaive$topvariables = list(aic=lTopVarAIC, waic=lTopVarWAIC)
+#lPB$topvariables = list(aic=lTopVarAIC, waic=lTopVarWAIC)
+#lPreGC$topvariables = list(aic=lTopVarAIC, waic=lTopVarWAIC)
+
+dfOne = data.frame(cd19=lCD19$topvariables$waic$one, 
+                   gc=lGC$topvariables$waic$one,
+                   mem=lMem$topvariables$waic$one,
+                   naive=lNaive$topvariables$waic$one,
+                   pb=lPB$topvariables$waic$one,
+                   pregc=lPreGC$topvariables$waic$one
+                   )
+
+dfTwo = data.frame(cd19=lCD19$topvariables$waic$two, 
+                   gc=lGC$topvariables$waic$two,
+                   mem=lMem$topvariables$waic$two,
+                   naive=lNaive$topvariables$waic$two,
+                   pb=lPB$topvariables$waic$two,
+                   pregc=lPreGC$topvariables$waic$two
+)
+
+dfThree = data.frame(cd19=lCD19$topvariables$waic$three, 
+                   gc=lGC$topvariables$waic$three,
+                   mem=lMem$topvariables$waic$three,
+                   naive=lNaive$topvariables$waic$three,
+                   pb=lPB$topvariables$waic$three,
+                   pregc=lPreGC$topvariables$waic$three
+)
+
+dfFour = data.frame(cd19=lCD19$topvariables$waic$four, 
+                   gc=lGC$topvariables$waic$four,
+                   mem=lMem$topvariables$waic$four,
+                   naive=lNaive$topvariables$waic$four,
+                   pb=lPB$topvariables$waic$four,
+                   pregc=lPreGC$topvariables$waic$four
+)
+
+###########################################################################################
+####### signature based on randomForest
 
 
 
