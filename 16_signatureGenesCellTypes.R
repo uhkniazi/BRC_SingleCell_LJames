@@ -552,6 +552,162 @@ dfFour = data.frame(cd19=lCD19$topvariables$waic$four,
 
 ###########################################################################################
 ####### signature based on randomForest
+mCounts = as.matrix(mCounts.norm[,-c(1:3)])
+
+dim(mCounts)
+i = which(rowSums(mCounts) == 0)
+mCounts = mCounts[-i,]
+dim(mCounts)
+mCounts = scale(t(mCounts))
+head(apply(mCounts, 2, sd))
+dfData = data.frame(mCounts)
+## add the cell type id
+dfData$fCellID = factor(lNanoString$metaData$group2)
+
+library(randomForest)
+fit.rf = randomForest(fCellID ~ ., data=dfData)
+
+# get variables importance
+varImpPlot(fit.rf)
+dfRF = data.frame(importance(fit.rf))
+head(dfRF)
+ivScore = dfRF$MeanDecreaseGini
+names(ivScore) = rownames(dfRF)
+ivScore = sort(ivScore, decreasing = T)
+ivScore
+summary(ivScore)
+f = quantile(ivScore, 0.90)
+table(ivScore >= f)
+ivScore = ivScore[ivScore >= f]
+tail(ivScore)
+## keep the top names
+## for some reason the - in the name is replaced by a .
+## replace those first
+colnames(mCounts) = gsub('\\-', '_', colnames(mCounts))
+cvTopGenes = gsub('\\.', '_', names(ivScore))
+table(cvTopGenes %in% colnames(mCounts))
+mCounts = t(mCounts)
+## find correlated variables
+mCounts = mCounts[cvTopGenes,]
+mCor = cor(t(mCounts), use="na.or.complete")
+library(caret)
+### find the columns that are correlated and should be removed
+n = findCorrelation((mCor), cutoff = 0.6, names=T)
+data.frame(n)
+sapply(n, function(x) {
+  (abs(mCor[,x]) >= 0.7)
+})
+i = which(cvTopGenes %in% n)
+cvTopGenes.cor = cvTopGenes[-i]
+
+mCounts = mCounts[cvTopGenes.cor,]
+
+dfData = data.frame(t(mCounts))
+
+# ## fit a few binomial models and calculate waic
+# dfData$fCellID = lNanoString$metaData$group2
+# table(dfData$fCellID)
+# 
+# ## setup the appropriate grouping
+# fGroups = rep(NA, length.out=length(dfData$fCellID))
+# fGroups[dfData$fCellID == 'PreGC'] = 1
+# fGroups[dfData$fCellID != 'PreGC'] = 0
+# dfData$fCellID = factor(fGroups)
+# 
+# calculateWAIC = function(dfData){
+#   lData = list(resp=ifelse(dfData$fCellID == 0, 0, 1),
+#                mModMatrix=model.matrix(fCellID ~ ., data=dfData))
+#   # set starting values for optimiser
+#   start = c(rep(0, times=ncol(lData$mModMatrix)))
+#   names(start) = colnames(lData$mModMatrix)
+#   # fit model
+#   fit.lap = laplace(mylogpost, start, lData)
+#   ### lets take a sample from this 
+#   ## parameters for the multivariate t density
+#   tpar = list(m=fit.lap$mode, var=fit.lap$var*2, df=4)
+#   ## get a sample directly and using sir (sampling importance resampling with a t proposal density)
+#   s = sir(mylogpost, tpar, 5000, lData)
+#   colnames(s) = colnames(lData$mModMatrix)
+#   ## averages of posterior from sir sample
+#   post = apply(s, 2, mean)
+#   # calculate E(lpd(theta))
+#   eLPD = mean(sapply(1:nrow(s), function(x) lpd(s[x,], lData)))
+#   
+#   # calclate ilppd
+#   ilppd = sum(log(sapply(seq_along(lData$resp), function(x) {
+#     d = list(resp=lData$resp[x], mModMatrix = lData$mModMatrix[x,])
+#     lppd(s, d)
+#   })))
+#   
+#   ## effective numbers of parameters pWAIC1
+#   pWAIC1 = 2 * (ilppd - eLPD)
+#   iWAIC = -2 * (ilppd - pWAIC1)
+#   return(iWAIC)
+# }
+# 
+# calculateWAIC(dfData)
+
+## the WAIC seems small enough but a bit too small i think
+## its in the range of 0.1 to 4
+
+dfData$fCellID = factor(lNanoString$metaData$group2)
+
+library(MASS)
+
+fit.lda = lda(fCellID ~ ., data=dfData)
+plot(fit.lda)
+fit.lda.rf = fit.lda
+################## fit a new LDA model but using variables selected via binomial variable selection
+mCounts = as.matrix(mCounts.norm[,-c(1:3)])
+
+dim(mCounts)
+i = which(rowSums(mCounts) == 0)
+mCounts = mCounts[-i,]
+dim(mCounts)
+mCounts = scale(t(mCounts))
+head(apply(mCounts, 2, sd))
+
+## try one variable 
+cvTopGenes.oneVar = unique(as.character(unlist(dfOne)))
+
+dfData = data.frame(mCounts[,cvTopGenes.oneVar])
+dfData$fCellID = factor(lNanoString$metaData$group2)
+fit.lda = lda(fCellID ~ ., data=dfData)
+plot(fit.lda)
+
+
+
+
+
+
+
+
+
+
+
+
+
+#############################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -637,12 +793,12 @@ op = optimx(start, mylogpost, control = list(maximize=T, usenumDeriv=T, all.meth
 summary(op) ##rvmmin seems to converge better
 
 library(rstan)
-stanDso = rstan::stan_model(file='binomialRegression.stan')
+stanDso = rstan::stan_model(file='binomialRegressionShrinkage.stan')
 
 lStanData = list(Ntotal=length(lData$resp), Ncol=ncol(lData$mModMatrix), X=lData$mModMatrix,
                  y=lData$resp)
 
-fit.stan = sampling(stanDso, data=lStanData, iter=5000, chains=4, pars=c('betas', 'betaSigma'))
+fit.stan = sampling(stanDso, data=lStanData, iter=10000, chains=4, pars=c('betas', 'betaSigma'), cores=4)
 # some diagnostics for stan
 print(fit.stan, digits=3)
 plot(fit.stan)
@@ -679,56 +835,6 @@ autocorr.plot(oCoda[[1]])
 ################################ old
 
 
-dfData = data.frame(t(mCounts))
-## add the cell type id
-dfData$fCellID = factor(lNanoString$metaData$group2)
-
-library(randomForest)
-fit.rf = randomForest(fCellID ~ ., data=dfData)
-
-# get variables importance
-varImpPlot(fit.rf)
-dfRF = data.frame(importance(fit.rf))
-head(dfRF)
-ivScore = dfRF$MeanDecreaseGini
-names(ivScore) = rownames(dfRF)
-ivScore = sort(ivScore, decreasing = T)
-ivScore
-summary(ivScore)
-f = quantile(ivScore, 0.90)
-table(ivScore >= f)
-ivScore = ivScore[ivScore >= f]
-tail(ivScore)
-## keep the top names
-## for some reason the - in the name is replaced by a .
-## replace those first
-cvTopGenes = gsub('\\.', '-', names(ivScore))
-table(cvTopGenes %in% rownames(mCounts))
-
-## find correlated variables
-mCounts = mCounts[cvTopGenes,]
-mCor = cor(t(mCounts), use="na.or.complete")
-library(caret)
-### find the columns that are correlated and should be removed
-n = findCorrelation((mCor), cutoff = 0.6, names=T)
-data.frame(n)
-sapply(n, function(x) {
-  (abs(mCor[,x]) >= 0.7)
-})
-i = which(cvTopGenes %in% n)
-cvTopGenes.cor = cvTopGenes[-i]
-
-mCounts = mCounts[cvTopGenes.cor,]
-
-dfData = data.frame(scale(t(mCounts)))
-## add the cell type id
-dfData$fCellID = factor(lNanoString$metaData$group2)
-
-library(MASS)
-
-fit.lda = lda(fCellID ~ ., data=dfData)
-plot(fit.lda)
-#############################################################################################
 
 ## try with binomial regression
 dfData$fCellID = lNanoString$metaData$group2
