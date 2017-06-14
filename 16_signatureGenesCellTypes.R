@@ -657,7 +657,7 @@ library(MASS)
 fit.lda = lda(fCellID ~ ., data=dfData)
 plot(fit.lda)
 fit.lda.rf = fit.lda
-################## fit a new LDA model but using variables selected via binomial variable selection
+################## fit a new LDA model but using variables selected via random forest
 mCounts = as.matrix(mCounts.norm[,-c(1:3)])
 
 dim(mCounts)
@@ -667,18 +667,48 @@ dim(mCounts)
 mCounts = scale(t(mCounts))
 head(apply(mCounts, 2, sd))
 
-## try one variable 
-cvTopGenes.oneVar = unique(as.character(unlist(dfOne)))
+## try variables of choice, e.g. one two three four or random forest
+cvTopGenes.oneVar = cvTopGenes.cor #unique(as.character(unlist(dfFour)))
 
+################## load the single cell data to see if these variables are expressed in other dataset
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# get the query
+g_did
+q = paste0('select MetaFile.* from MetaFile
+           where (MetaFile.idData = 12) AND (MetaFile.comment like "%scater%")')
+dfSample = dbGetQuery(db, q)
+dfSample
+# close connection after getting data
+dbDisconnect(db)
+library(scater)
+library(org.Hs.eg.db)
+n = paste0(dfSample$location, dfSample$name)
+load(n)
+# load the single cell normalised count matrix
+mCounts.SC = exprs(oSce.F)
+## match the names between the 2 data sets i.e. symbols in nanostring and enterez id in single cell
+dfSymbols = AnnotationDbi::select(org.Hs.eg.db, cvTopGenes.oneVar, columns = 'ENTREZID', keytype = 'SYMBOL')
+table(dfSymbols$ENTREZID %in% rownames(mCounts.SC))
+dfSymbols[(dfSymbols$ENTREZID %in% rownames(mCounts.SC)),]
+cvTopGenes.oneVar = dfSymbols[(dfSymbols$ENTREZID %in% rownames(mCounts.SC)),'SYMBOL']
+## subset the single cell matrix and standardize the gene expressions
+mCounts.SC.sub = mCounts.SC[dfSymbols[(dfSymbols$ENTREZID %in% rownames(mCounts.SC)),'ENTREZID'], ]
+rownames(mCounts.SC.sub) =  dfSymbols[(dfSymbols$ENTREZID %in% rownames(mCounts.SC)),'SYMBOL']
+dfData.SC = data.frame(scale(t(mCounts.SC.sub)))
+
+## fit/train the LDA model using the data from nano string 
 dfData = data.frame(mCounts[,cvTopGenes.oneVar])
 dfData$fCellID = factor(lNanoString$metaData$group2)
 fit.lda = lda(fCellID ~ ., data=dfData)
-plot(fit.lda)
+#plot(fit.lda)
+# check fit quality on training set
+table(predict(fit.lda)$class != dfData$fCellID)
+# perform prediction on single cell data
+pr = predict(fit.lda, newdata = dfData.SC)
 
 
 
-
-
+################################################################################
 
 
 
