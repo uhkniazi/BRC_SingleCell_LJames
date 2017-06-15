@@ -44,3 +44,16 @@ getStanMean = function(obj){
 getStanPValue = function(obj){
   pnorm(-abs(getStanMean(obj)/getStanSD(obj)))*2
 }
+
+## binomial prediction
+mypred = function(theta, data){
+  betas = theta # vector of betas i.e. regression coefficients for population
+  ## data
+  mModMatrix = data$mModMatrix
+  # calculate fitted value
+  iFitted = mModMatrix %*% betas
+  # using logit link so use inverse logit
+  iFitted = logit.inv(iFitted)
+  ## likelihood function with posterior theta
+  return(iFitted)
+}

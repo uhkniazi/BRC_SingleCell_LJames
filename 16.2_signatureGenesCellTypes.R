@@ -1,20 +1,108 @@
+# File: 16_signatureGenesCellTypes.R
+# Auth: umar.niazi@kcl.ac.uk
+# DESC: identify signature genes to classify cells
+# Date: 05/06/2017
 
+
+## set variables and source libraries
+source('header.R')
+
+## connect to mysql database to get find path to appropriate file
+library('RMySQL')
+
+##### connect to mysql database to get samples
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# get the query
+g_did2
+q = paste0('select MetaFile.* from MetaFile
+           where (MetaFile.idData = 13) AND (MetaFile.comment like "%NanoString%")')
+dfSample = dbGetQuery(db, q)
+dfSample
+
+# close connection after getting data
+dbDisconnect(db)
+
+n = paste0(dfSample$location[2], dfSample$name[2])
+
+load(n)
+
+####### load single cell data
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# get the query
+g_did
+q = paste0('select MetaFile.* from MetaFile
+           where (MetaFile.idData = 12) AND (MetaFile.comment like "%scater%")')
+dfSample = dbGetQuery(db, q)
+dfSample
+# close connection after getting data
+dbDisconnect(db)
 library(scater)
+library(org.Hs.eg.db)
+n = paste0(dfSample$location, dfSample$name)
+load(n)
 
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
-anno = select(org.Hs.eg.db, keys=rownames(oSce), keytype="ENTREZID", column="SYMBOL")
-symb = anno$SYMBOL[match(rownames(oSce), anno$ENTREZID)]
+# load the single cell normalised count matrix
+mCounts.SC = exprs(oSce.F)
 
-mCounts = exprs(oSce.F)
+# load the nano string count matrix
+names(lNanoString)
+lNanoString$desc
 
-dfSymbols = AnnotationDbi::select(org.Hs.eg.db, cvTopGenes.oneVar, columns = 'ENTREZID', keytype = 'SYMBOL')
+mCounts.norm = lNanoString$normalizedData$normalized.data
+mCounts.norm = mCounts.norm[mCounts.norm$Code.Class == 'Endogenous', ]
+rownames(mCounts.norm) = mCounts.norm$Name
+
+## match the names between the 2 data sets 
+## i.e. symbols in nanostring and enterez id in single cell
+dfSymbols = AnnotationDbi::select(org.Hs.eg.db, rownames(mCounts.norm), 
+                                  columns = 'ENTREZID', keytype = 'SYMBOL')
+dfSymbols = na.omit(dfSymbols)
+# how many match b/w the 2 data sets
 table(dfSymbols$ENTREZID %in% rownames(mCounts.SC))
-dfSymbols[(dfSymbols$ENTREZID %in% rownames(mCounts.SC)),]
-cvTopGenes.oneVar = dfSymbols[(dfSymbols$ENTREZID %in% rownames(mCounts.SC)),'SYMBOL']
+# 
+# FALSE  TRUE 
+# 293   262 
+dfSymbols = dfSymbols[(dfSymbols$ENTREZID %in% rownames(mCounts.SC)),]
+# match these symbols with nanostring data
+i = match(dfSymbols$SYMBOL, rownames(mCounts.norm))
+identical(dfSymbols$SYMBOL, rownames(mCounts.norm)[i])
+mCounts.norm = mCounts.norm[i,]
+# replace these names by enterez ids
+rownames(mCounts.norm) = dfSymbols$ENTREZID
 
+## create the count matrix from nano string data for variable selection
+mCounts = as.matrix(mCounts.norm[,-c(1:3)])
+dim(mCounts)
+i = which(rowSums(mCounts) == 0)
+mCounts = mCounts[-i,]
+dim(mCounts)
+mCounts = scale(t(mCounts))
+head(apply(mCounts, 2, sd))
 
+############### follow the regression based approach
+## remove correlated variables first
+## find correlated variables
+mCor = cor(mCounts, use="na.or.complete")
+library(caret)
+### find the columns that are correlated and should be removed
+n = findCorrelation((mCor), cutoff = 0.6, names=T)
+# data.frame(n)
+# sapply(n, function(x) {
+#   (abs(mCor[,x]) >= 0.7)
+# })
+i = which(colnames(mCounts) %in% n)
+cvTopGenes = colnames(mCounts)[-i]
 
+mCounts = mCounts[,cvTopGenes]
+rm(mCor)
+gc()
 
+## cvTopGenes = 16 genes
+
+########## perform binomial regression on each category 
+dfData = data.frame(mCounts)
+# this conversion to data.frame tends to put an X before variable
+# names so use that when making formulas
 
 ## add the cell type id
 dfData$fCellID = lNanoString$metaData$group2
@@ -27,198 +115,482 @@ fGroups[dfData$fCellID != 'CD19'] = 0
 
 dfData$fCellID = factor(fGroups)
 
-lData = list(resp=ifelse(dfData$fCellID == 0, 0, 1),
-             mModMatrix=model.matrix(as.formula(f), data=dfData))
 
-# set starting values for optimiser
-start = c(rep(0, times=ncol(lData$mModMatrix)))
-names(start) = colnames(lData$mModMatrix)
-# fit model
-fit.lap = laplace(mylogpost, start, lData)
-### lets take a sample from this 
-## parameters for the multivariate t density
-tpar = list(m=fit.lap$mode, var=fit.lap$var*2, df=4)
-## get a sample directly and using sir (sampling importance resampling with a t proposal density)
-s = sir(mylogpost, tpar, 5000, lData)
-colnames(s) = colnames(lData$mModMatrix)
-#fit.lap$sir = s
+## setup functions to fit model and calculate log posterior
+## and log likelihood
+logit.inv = function(p) {exp(p)/(exp(p)+1) }
 
-## averages of posterior from sir sample
-post = apply(s, 2, mean)
-
-# calculate AIC
-iAIC = (lpd(post, lData) - length(start)) * -2
-
-# calculate E(lpd(theta))
-eLPD = mean(sapply(1:nrow(s), function(x) lpd(s[x,], lData)))
-
-# calclate ilppd
-ilppd = sum(log(sapply(seq_along(lData$resp), function(x) {
-  d = list(resp=lData$resp[x], mModMatrix = lData$mModMatrix[x,])
-  lppd(s, d)
-})))
-
-## effective numbers of parameters pWAIC1
-pWAIC1 = 2 * (ilppd - eLPD)
-
-iWAIC = -2 * (ilppd - pWAIC1)
-
-fit.lap$modelCheck = list('AIC'=iAIC, 'pWAIC1'=pWAIC1, 'WAIC'=iWAIC)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-csFile = file.choose()
-
-# load the bam file as GAlignment object
-oGABam = readGAlignments(csFile)
-
-# load the bam file using BamFile function or BamFileList
-bf = BamFile(csFile)
-# get names of sequences
-sn = seqinfo(bf)
-gr = as(sn, 'GRanges')
-sort(seqlengths(bf))
-
-
-CBamScaffold.getReadWidthSample = function(obj, size=1000) sample(obj@ivReadWidth, size = size, replace = T)
-
-boots = rep(NA, times=1000)
-for (i in 1:1000){
-  s1 = sample(labs, 36)
-  s2 = sample(labs, 36)
-  boots[i] = sum(!(labs %in%(unique(c(s1,s2))))) 
-}
-hist(boots)
-
-chr14:105,707,118-105,708,665
-
-
-
-
-
-
-## import the assembled sequence
-g2 = import(file.choose())
-pwa = pairwiseAlignment(oSeqIGHc, subject = g2[2], type='local')
-m = as.matrix(pwa)
-dim(m)
-c = unlist(strsplit(toString(g2[2]), split = ''))
-m = rbind(m, c)
-dim(m)
-se = f_oDNAStringSetConvertPWAMatrix(m)
-names(se) = c(names(oSeqIGHc), 'predicted')
-export(se, 'Temp/pwa.fasta')
-writePairwiseAlignments(pwa, file='Temp/pwa_pwa.txt')
-
-g1 = import('Temp/gene.fasta')
-
-pwa = pairwiseAlignment(seq[[1]], g2[[2]], type='local')
-m = as.matrix(pwa)
-dim(m)
-c = unlist(strsplit(toString(g2[[2]]), split = ''))
-m = rbind(m, c)
-dim(m)
-
-se = f_oDNAStringSetConvertPWAMatrix(m)
-export(se, 'Temp/pwa.fasta')
-writePairwiseAlignments(pwa, file='Temp/pwa_pwa.txt')
-
-louisa.igh = import('Temp/igh_louisa_seqs.fasta')
-louisa.igh = reverseComplement(louisa.igh)
-names(seq[[1]]) = c('exon1', 'exon2', 'exon3')
-louisa.igh = append(louisa.igh, seq[[1]])
-pwa = pairwiseAlignment(louisa.igh, g2[[2]], type='local')
-m = as.matrix(pwa)
-dim(m)
-c = unlist(strsplit(toString(g2[[2]]), split = ''))
-m = rbind(m, c)
-dim(m)
-se = f_oDNAStringSetConvertPWAMatrix(m)
-names(se) = c(names(louisa.igh), 'predicted')
-export(se, 'Temp/pwa_igh_louisa-norc.fasta')
-
-
-
-# number of reads aligned
-f1 = function(ob){
-  n = sapply(ob, function(x) length(CBamScaffold.getReadWidth(x)))
-  n = sum(n)/1e+6
-  return(n)
+## lets write a custom glm using a bayesian approach
+## write the log posterior function
+mylogpost = function(theta, data){
+  betas = theta # vector of betas i.e. regression coefficients for population
+  ## data
+  resp = data$resp # resp
+  mModMatrix = data$mModMatrix
+  
+  # calculate fitted value
+  iFitted = mModMatrix %*% betas
+  # using logit link so use inverse logit
+  iFitted = logit.inv(iFitted)
+  # write the priors and likelihood
+  lp = dnorm(betas[1], 0, 10, log=T) + sum(dnorm(betas[-1], 0, 10, log=T))
+  lik = sum(dbinom(resp, 1, iFitted, log=T))
+  val = lik + lp
+  return(val)
 }
 
-iReadCount = sapply(lAllBams, f1)
+library(LearnBayes)
+source('utilities.R')
+library(parallel)
+tryCombinations = function(iCombinationIndex){
+  ## setup the data
+  f = paste('fCellID ~ ', paste(mCombinations[,iCombinationIndex], collapse='+'), collapse = ' ')
+  lData = list(resp=ifelse(dfData$fCellID == 0, 0, 1),
+               mModMatrix=model.matrix(as.formula(f), data=dfData))
+  
+  # set starting values for optimiser
+  start = c(rep(0, times=ncol(lData$mModMatrix)))
+  names(start) = colnames(lData$mModMatrix)
+  # fit model
+  fit.lap = laplace(mylogpost, start, lData)
+  ### lets take a sample from this 
+  ## parameters for the multivariate t density
+  tpar = list(m=fit.lap$mode, var=fit.lap$var*2, df=4)
+  ## get a sample directly and using sir (sampling importance resampling with a t proposal density)
+  s = sir(mylogpost, tpar, 5000, lData)
+  colnames(s) = colnames(lData$mModMatrix)
+  #fit.lap$sir = s
+  
+  ## averages of posterior from sir sample
+  post = apply(s, 2, mean)
+  
+  # calculate AIC
+  iAIC = (lpd(post, lData) - length(start)) * -2
+  
+  # calculate E(lpd(theta))
+  eLPD = mean(sapply(1:nrow(s), function(x) lpd(s[x,], lData)))
+  
+  # calclate ilppd
+  ilppd = sum(log(sapply(seq_along(lData$resp), function(x) {
+    d = list(resp=lData$resp[x], mModMatrix = lData$mModMatrix[x,])
+    lppd(s, d)
+  })))
+  
+  ## effective numbers of parameters pWAIC1
+  pWAIC1 = 2 * (ilppd - eLPD)
+  
+  iWAIC = -2 * (ilppd - pWAIC1)
+  
+  fit.lap$modelCheck = list('AIC'=iAIC, 'pWAIC1'=pWAIC1, 'WAIC'=iWAIC)
+  return(fit.lap)
+}
 
-## make count matrix
-names(lCounts)
-mCounts = do.call(cbind, lCounts)
-
-# reorder the count matrix columns according to the order in samples table
-i = match(dfSample.names$name, colnames(mCounts))
-mCounts = mCounts[,i]
-# sanity check
-identical(dfSample.names$name, colnames(mCounts))
-colnames(mCounts) = dfSample.names$title
-bSpike = grepl('^ERCC', rownames(oSce)); table(bSpike)
-
-###### association between proportion of reads aligned to ERCC vs Genes
-## get count matrix
-mCounts = counts(oSce.T)
-
-i2 = grepl(pattern = '^ERCC', rownames(mCounts))
-table(i2)
-m1 = mCounts[i2,]
-m2 = mCounts[!i2,]
-m1 = colSums(m1)
-m2 = colSums(m2)
-mCounts = rbind(m1, m2)
-rownames(mCounts) = c('ERCC', 'Genes')
-fSamples = factor(dfSample.names$group1)
-col.p = rainbow(length(unique(fSamples)))
-col = col.p[as.numeric(fSamples)]
-
-plot(t(mCounts), pch=20, main='Reads aligned to genes vs Spike-in', col=col)
-text(t(mCounts), labels = colnames(mCounts), pos = 1, cex=0.6)
-
-cs = colSums(mCounts)
-mCounts = sweep(mCounts, 2, cs, '/')
-i = which(mCounts['ERCC',] < 0.041)
-
-b = barplot((mCounts), xaxt='n', main='Proportion of reads aligned to ERCC (Black) and Genes (Grey)')
-axis(1, at = b[-i], labels=colnames(mCounts)[-i], tick = F, las=2, cex.axis=0.6)
-axis(1, at = b[i], labels=colnames(mCounts)[i], tick = F, las=2, cex.axis=0.6, col.axis='red')
-
-
-
-
-pwa = pairwiseAlignment(g2, g1, type='local')
-m = as.matrix(pwa)
-dim(m)
-c = unlist(strsplit(toString(g1), split = ''))
-m = rbind(m, c)
-dim(m)
-
-se = f_oDNAStringSetConvertPWAMatrix(m)
-export(se, 'Temp/pwa.fasta')
-
-
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+# variable names need an X
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
 
 
-pairwiseAlignment(pattern = g1, subject = g2[[2]], type='local')
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lCD19 = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, GC
+dfData = data.frame(mCounts)
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'GC'] = 1
+fGroups[dfData$fCellID != 'GC'] = 0
+table(fGroups, dfData$fCellID)
+
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lGC = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, Mem
+dfData = data.frame(mCounts)
+
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'Mem'] = 1
+fGroups[dfData$fCellID != 'Mem'] = 0
+table(fGroups, dfData$fCellID)
+
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lMem = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, Naive
+dfData = data.frame(mCounts)
+
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'Naive'] = 1
+fGroups[dfData$fCellID != 'Naive'] = 0
+table(fGroups, dfData$fCellID)
+
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lNaive = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, PB
+dfData = data.frame(mCounts)
+
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'PB'] = 1
+fGroups[dfData$fCellID != 'PB'] = 0
+table(fGroups, dfData$fCellID)
+
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lPB = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+########## repeat the variable selection for other groups, PreGC
+dfData = data.frame(mCounts)
+
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'PreGC'] = 1
+fGroups[dfData$fCellID != 'PreGC'] = 0
+table(fGroups, dfData$fCellID)
+
+dfData$fCellID = factor(fGroups)
+
+## generate the combination matrix
+## using 3-4 variables at the most i.e. log(18)
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 1)
+lFits.1var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 2)
+lFits.2var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 3)
+lFits.3var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+mCombinations = combn(paste('X', cvTopGenes, sep=''), 4)
+lFits.4var = mclapply(1:ncol(mCombinations), function(iIndexSub) {
+  tryCatch(tryCombinations(iIndexSub), error=function(e) NULL)
+})
+
+
+names(lFits.1var) = 1:length(lFits.1var)
+names(lFits.2var) = 1:length(lFits.2var)
+names(lFits.3var) = 1:length(lFits.3var)
+names(lFits.4var) = 1:length(lFits.4var)
+# save the object
+lPreGC = list(one=lFits.1var, two=lFits.2var, three=lFits.3var, four=lFits.4var)
+
+rm(list = c('lFits.1var', 'lFits.2var', 'lFits.3var', 'lFits.4var'))
+gc()
+
+## save the objects
+lVarSelection = list(lCD19, lGC, lMem, lNaive, lPB, lPreGC)
+
+n = make.names(paste('Binomial Variable Selection for NanoString Data from louisa single cell project rds'))
+lVarSelection$desc = paste('Binomial Variable Selection for NanoString Data from louisa single cell project', date())
+names(lVarSelection) = c('cd19', 'gc', 'mem', 'naive', 'pb', 'pregc', 'desc')
+n2 = paste0('~/Data/MetaData/', n)
+
+save(lVarSelection, file=n2)
+
+# comment out as this has been done once
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did2, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='Binomial Variable Selection for NanoString Data from louisa single cell project')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
+
+## check each result
+lFits.1var = lVarSelection$pregc$one
+lFits.2var = lVarSelection$pregc$two
+lFits.3var = lVarSelection$pregc$three
+lFits.4var = lVarSelection$pregc$four
+
+mOne = t(do.call(cbind, lapply(lFits.1var, function(x) unlist(x$modelCheck))))
+
+mTwo = t(do.call(cbind, lapply(lFits.2var, function(x) unlist(x$modelCheck))))
+
+mThree = t(do.call(cbind, lapply(lFits.3var, function(x) unlist(x$modelCheck))))
+
+mFour = t(do.call(cbind, lapply(lFits.4var, function(x) unlist(x$modelCheck))))
+
+# iAIC = c(min(mOne[,'AIC']), min(mTwo[,'AIC']), min(mThree[,'AIC']), min(mFour[,'AIC']))
+# pWAIC = c(min(mOne[,'pWAIC1']), min(mTwo[,'pWAIC1']), min(mThree[,'pWAIC1']), min(mFour[,'pWAIC1']))
+# WAIC = c(min(mOne[,'WAIC']), min(mTwo[,'WAIC']), min(mThree[,'WAIC']), min(mFour[,'WAIC']))
+
+### make some plots
+boxplot(mOne[,'AIC'], mTwo[,'AIC'], mThree[,'AIC'], mFour[,'AIC'])
+boxplot(mOne[,'pWAIC1'], mTwo[,'pWAIC1'], mThree[,'pWAIC1'], mFour[,'pWAIC1'])
+boxplot(mOne[,'WAIC'], mTwo[,'WAIC'], mThree[,'WAIC'], mFour[,'WAIC'])
+
+boxplot(mOne[,'AIC'], mOne[,'WAIC'], mTwo[,'AIC'], mTwo[,'WAIC'], mThree[,'AIC'], mThree[,'WAIC'],
+        mFour[,'AIC'], mFour[,'WAIC'], col=rep(grey.colors(2), times=4), main='Scores for model vs model size',
+        xlab='No. of variables', ylab='Score', xaxt='n', pch=20, cex=0.5)
+axis(1, at = 1:8, labels = c(1, 1, 2, 2, 3, 3, 4, 4))
+legend('bottomleft', legend = c('AIC', 'WAIC'), fill=grey.colors(2))
+
+### select the variables with lowest scores in each model size
+getAICVar = function(m, l){
+  iA = which.min(m[,'AIC'])
+  names(l[[names(iA)]]$mode)[-1]  
+}
+
+getWAICVar = function(m, l){
+  iW = which.min(m[,'WAIC'])
+  names(l[[names(iW)]]$mode)[-1]
+}
+
+## get the top variables based on AIC in each comparison
+lVarSelection$desc = NULL
+
+lTopVariables = lapply(lVarSelection, function(lx){
+  ## get the matrix 
+  lmats = lapply(lx, function(lx2){
+    t(do.call(cbind, lapply(lx2, function(x) unlist(x$modelCheck))))
+  })
+  lwaic = lapply(seq_along(lmats), function(lx2){
+    return(getWAICVar(lmats[[lx2]], lx[[lx2]]))
+  })
+})
+
+## predict on these variables and test in single cell data
+dfData = data.frame(mCounts)
+# this conversion to data.frame tends to put an X before variable
+# names so use that when making formulas
+
+## add the cell type id
+dfData$fCellID = lNanoString$metaData$group2
+table(dfData$fCellID)
+
+## setup the appropriate grouping
+fGroups = rep(NA, length.out=length(dfData$fCellID))
+fGroups[dfData$fCellID == 'CD19'] = 1
+fGroups[dfData$fCellID != 'CD19'] = 0
+
+dfData$fCellID = factor(fGroups)
+
+lCoef = lapply(lTopVariables$cd19, function(lx){
+  f = paste('fCellID ~ ', paste(lx, collapse='+'), collapse = ' ')
+  lData = list(resp=ifelse(dfData$fCellID == 0, 0, 1),
+               mModMatrix=model.matrix(as.formula(f), data=dfData))
+  # set starting values for optimiser
+  start = c(rep(0, times=ncol(lData$mModMatrix)))
+  names(start) = colnames(lData$mModMatrix)
+  # fit model
+  fit.lap = laplace(mylogpost, start, lData)
+  ### lets take a sample from this 
+  ## parameters for the multivariate t density
+  tpar = list(m=fit.lap$mode, var=fit.lap$var*2, df=4)
+  ## get a sample directly and using sir (sampling importance resampling with a t proposal density)
+  s = sir(mylogpost, tpar, 5000, lData)
+  colnames(s) = colnames(lData$mModMatrix)
+  ## averages of posterior from sir sample
+  post = apply(s, 2, mean)
+  return(post)
+})
+
+## new data
+dfData.new = data.frame(mCounts)
+## perform prediction on this
+lPred = lapply(lCoef, function(lx){
+  X = as.matrix(cbind(rep(1, times=nrow(mData.new)), dfData.new[,names(lx)[-1]]))
+  colnames(X) = names(lx)
+  lData = list(mModMatrix=X)
+  return(mypred(lx, lData))
+})
+
 
