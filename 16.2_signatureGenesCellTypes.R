@@ -633,6 +633,126 @@ save(dfSingleCellPred, file=n2)
 
 ############################################# 
 ##### second classifier using random forest and lda
+dfData = data.frame(mCounts)
+# this conversion to data.frame tends to put an X before variable
+# names so use that when making formulas
 
+## add the cell type id
+dfData$fCellID = factor(lNanoString$metaData$group2)
+table(dfData$fCellID)
+dim(dfData)
+
+set.seed(123)
+library(randomForest)
+fit.rf = randomForest(fCellID ~ ., data=dfData)
+
+# get variables importance
+varImpPlot(fit.rf)
+dfRF = data.frame(importance(fit.rf))
+head(dfRF)
+ivScore = dfRF$MeanDecreaseGini
+names(ivScore) = rownames(dfRF)
+ivScore = sort(ivScore, decreasing = T)
+head(ivScore)
+summary(ivScore)
+f = quantile(ivScore, 0.75)
+table(ivScore >= f)
+ivScore = ivScore[ivScore >= f]
+tail(ivScore)
+## keep the top names
+cvTopGenes = gsub('X', '', names(ivScore))
+table(cvTopGenes %in% colnames(mCounts))
+## find correlated variables
+mCor = cor(mCounts[,cvTopGenes], use="na.or.complete")
+# library(caret)
+# ### find the columns that are correlated and should be removed
+# n = findCorrelation((mCor), cutoff = 0.6, names=T)
+# data.frame(n)
+# sapply(n, function(x) {
+#   (abs(mCor[,x]) >= 0.7)
+# })
+# i = which(cvTopGenes %in% n)
+# cvTopGenes.cor = cvTopGenes[-i]
+# 
+# mCounts = mCounts[cvTopGenes.cor,]
+
+## train the model
+dfData = data.frame(mCounts[,cvTopGenes])
+# this conversion to data.frame tends to put an X before variable
+# names so use that when making formulas
+## add the cell type id
+dfData$fCellID = factor(lNanoString$metaData$group2)
+table(dfData$fCellID)
+dim(dfData)
+
+library(MASS)
+fit.lda = lda(fCellID ~ ., data=dfData)
+plot(fit.lda)
+
+# prediction error on training data
+p = predict(fit.lda)
+
+dfPred.train.lda = data.frame(round(p$posterior, 3), actual=dfData$fCellID)
+
+### predict on the new data from single cells
+dfData.new = data.frame(scale(t(mCounts.SC)))
+dfData.new = dfData.new[,paste('X', cvTopGenes, sep='')]
+dim(dfData.new)
+
+p = predict(fit.lda, newdata = dfData.new)
+
+dfSingleCellPred.lda = data.frame(p$posterior)
+
+n = make.names(paste('Predictions for single cell classes using random forest and lda louisa rds'))
+n2 = paste0('~/Data/MetaData/', n)
+
+save(dfSingleCellPred.lda, file=n2)
+
+## comment out as this has been done once
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='Predictions for single cell classes using random forest and lda for louisa j project')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
+
+## display bar plots for both data sets
+
+plot.bar = function(mBar, title='', cols){
+  # get the median to plot
+  #p.old = par(mar=c(6,3,2,2)+0.1)
+  l = barplot(mBar, beside=F, xaxt='n', main=title, col=cols)
+  axis(side = 1, l, labels=F)
+  text(l, y=par()$usr[3]-0.1*(par()$usr[4]-par()$usr[3]),
+       labels=colnames(mBar), srt=45, adj=1, xpd=TRUE, cex=0.6)
+  #par(p.old)
+}
+
+## make an overlay barplot
+n = rainbow(6)
+m = t(as.matrix(dfSingleCellPred)); m = m+0.001
+plot.bar(t(as.matrix(m[1,])), 'Classification of single cells', cols = n[1])
+barplot(m[2,], col = n[2], yaxt='n', xaxt='n', add=T)
+barplot(m[3,], col = n[3], yaxt='n', xaxt='n', add=T)
+barplot(m[4,], col = n[4], yaxt='n', xaxt='n', add=T)
+barplot(m[5,], col = n[5], yaxt='n', xaxt='n', add=T)
+barplot(m[6,], col = n[6], yaxt='n', xaxt='n', add=T)
+legend('topright', legend = rownames(m), fill = n, cex = 0.7)
+
+par(mfrow=c(2,1))
+
+m = t(as.matrix(dfSingleCellPred)); m = m+0.001
+cs = colSums(m)
+m = sweep(m, 2, cs, '/')
+
+plot.bar(m, 'binomial', rainbow(6))
+
+m = t(as.matrix(dfSingleCellPred.lda)); m = m+0.001
+cs = colSums(m)
+m = sweep(m, 2, cs, '/')
+
+plot.bar(m, 'lda', rainbow(6))
 
 
