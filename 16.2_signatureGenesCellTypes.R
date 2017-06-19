@@ -495,10 +495,10 @@ save(lVarSelection, file=n2)
 # dbDisconnect(db)
 
 ## check each result
-lFits.1var = lVarSelection$pregc$one
-lFits.2var = lVarSelection$pregc$two
-lFits.3var = lVarSelection$pregc$three
-lFits.4var = lVarSelection$pregc$four
+lFits.1var = lVarSelection$pb$one
+lFits.2var = lVarSelection$pb$two
+lFits.3var = lVarSelection$pb$three
+lFits.4var = lVarSelection$pb$four
 
 mOne = t(do.call(cbind, lapply(lFits.1var, function(x) unlist(x$modelCheck))))
 
@@ -534,7 +534,7 @@ getWAICVar = function(m, l){
   names(l[[names(iW)]]$mode)[-1]
 }
 
-## get the top variables based on AIC in each comparison
+## get the top variables based on WAIC in each comparison
 lVarSelection$desc = NULL
 
 lTopVariables = lapply(lVarSelection, function(lx){
@@ -558,12 +558,13 @@ table(dfData$fCellID)
 
 ## setup the appropriate grouping
 fGroups = rep(NA, length.out=length(dfData$fCellID))
-fGroups[dfData$fCellID == 'CD19'] = 1
-fGroups[dfData$fCellID != 'CD19'] = 0
+fGroups[dfData$fCellID == 'PreGC'] = 1
+fGroups[dfData$fCellID != 'PreGC'] = 0
 
 dfData$fCellID = factor(fGroups)
 
-lCoef = lapply(lTopVariables$cd19, function(lx){
+## calculate coefficients for the top variables and model size
+lCoef = lapply(lTopVariables$pregc, function(lx){
   f = paste('fCellID ~ ', paste(lx, collapse='+'), collapse = ' ')
   lData = list(resp=ifelse(dfData$fCellID == 0, 0, 1),
                mModMatrix=model.matrix(as.formula(f), data=dfData))
@@ -583,14 +584,55 @@ lCoef = lapply(lTopVariables$cd19, function(lx){
   return(post)
 })
 
-## new data
+## new data, the same training data
 dfData.new = data.frame(mCounts)
 ## perform prediction on this
 lPred = lapply(lCoef, function(lx){
-  X = as.matrix(cbind(rep(1, times=nrow(mData.new)), dfData.new[,names(lx)[-1]]))
+  X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,names(lx)[-1]]))
   colnames(X) = names(lx)
   lData = list(mModMatrix=X)
   return(mypred(lx, lData))
 })
+
+dfPred.train = do.call(cbind, lPred)
+dfPred.train = round(dfPred.train, 3)
+dfPred.train = data.frame(dfPred.train)
+dfPred.train$actual = dfData$fCellID
+
+###### looking at the pWAIC, WAIC and prediction errors on the training data
+## a 3 variable model appears to be generally good enough 
+## use this 3 variable model to make predictions in single cell data
+dfData.new = data.frame(scale(t(mCounts.SC)))
+dfData.new = dfData.new[,names(lCoef[[3]])[-1]]
+dim(dfData.new)
+## perform prediction on this
+lPred = lapply(lCoef[3], function(lx){
+  X = as.matrix(cbind(rep(1, times=nrow(dfData.new)), dfData.new[,names(lx)[-1]]))
+  colnames(X) = names(lx)
+  lData = list(mModMatrix=X)
+  return(mypred(lx, lData))
+})
+
+#dfSingleCellPred = data.frame(cd19=lPred[[1]])
+dfSingleCellPred$pregc = lPred[[1]]
+
+n = make.names(paste('Predictions for single cell classes using binomial classification louisa rds'))
+n2 = paste0('~/Data/MetaData/', n)
+
+save(dfSingleCellPred, file=n2)
+
+## comment out as this has been done once
+# library('RMySQL')
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# dbListFields(db, 'MetaFile')
+# df = data.frame(idData=g_did, name=n, type='rds', location='~/Data/MetaData/',
+#                 comment='Predictions for single cell classes using binomial classification louisa j project')
+# dbWriteTable(db, name = 'MetaFile', value=df, append=T, row.names=F)
+# dbDisconnect(db)
+
+############################################# 
+##### second classifier using random forest and lda
+
 
 

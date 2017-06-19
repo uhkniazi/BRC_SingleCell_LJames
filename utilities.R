@@ -54,6 +54,5 @@ mypred = function(theta, data){
   iFitted = mModMatrix %*% betas
   # using logit link so use inverse logit
   iFitted = logit.inv(iFitted)
-  ## likelihood function with posterior theta
   return(iFitted)
 }
