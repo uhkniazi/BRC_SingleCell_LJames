@@ -720,13 +720,13 @@ save(dfSingleCellPred.lda, file=n2)
 
 ## display bar plots for both data sets
 
-plot.bar = function(mBar, title='', cols){
+plot.bar = function(mBar, title='', cols, ylab='Predicted Probability of Cell Type'){
   # get the median to plot
   #p.old = par(mar=c(6,3,2,2)+0.1)
-  l = barplot(mBar, beside=F, xaxt='n', main=title, col=cols)
+  l = barplot(mBar, beside=F, xaxt='n', main=title, col=cols, ylab=ylab)
   axis(side = 1, l, labels=F)
   text(l, y=par()$usr[3]-0.1*(par()$usr[4]-par()$usr[3]),
-       labels=colnames(mBar), srt=45, adj=1, xpd=TRUE, cex=0.6)
+       labels=colnames(mBar), srt=45, adj=1, xpd=TRUE, cex=0.8)
   #par(p.old)
 }
 
@@ -741,18 +741,43 @@ barplot(m[5,], col = n[5], yaxt='n', xaxt='n', add=T)
 barplot(m[6,], col = n[6], yaxt='n', xaxt='n', add=T)
 legend('topright', legend = rownames(m), fill = n, cex = 0.7)
 
-par(mfrow=c(2,1))
+## drop the cells where maximum prediction is not greater than 50%
+m = as.matrix(dfSingleCellPred)
+f = apply(m, 1, function(x) any(x >= 0.8))
+m = m[f,]
+m = t(m)
 
-m = t(as.matrix(dfSingleCellPred)); m = m+0.001
-cs = colSums(m)
-m = sweep(m, 2, cs, '/')
+n = rainbow(6)
+plot.bar(t(as.matrix(m[1,])), 'Classification of single cells at 80% cutoff', cols = n[1])
+barplot(m[2,], col = n[2], yaxt='n', xaxt='n', add=T)
+barplot(m[3,], col = n[3], yaxt='n', xaxt='n', add=T)
+barplot(m[4,], col = n[4], yaxt='n', xaxt='n', add=T)
+barplot(m[5,], col = n[5], yaxt='n', xaxt='n', add=T)
+barplot(m[6,], col = n[6], yaxt='n', xaxt='n', add=T)
+legend('topright', legend = rownames(m), fill = n, cex = 0.7)
 
-plot.bar(m, 'binomial', rainbow(6))
+## classify the cells proportions
+m = as.matrix(dfSingleCellPred)
+f = apply(m, 1, which.max)
+f2 = apply(m, 1, function(x) any(x > 0.80))
+f[!f2] = '7'
+## convert to factor
+fCellTypes = factor(f, labels = c(colnames(m), 'unclassified'))
+f = table(fCellTypes)
+f = table(fCellTypes[!(fCellTypes %in% c('unclassified'))])
 
-m = t(as.matrix(dfSingleCellPred.lda)); m = m+0.001
-cs = colSums(m)
-m = sweep(m, 2, cs, '/')
-
-plot.bar(m, 'lda', rainbow(6))
+# par(mfrow=c(2,1))
+# 
+# m = t(as.matrix(dfSingleCellPred)); m = m+0.001
+# cs = colSums(m)
+# m = sweep(m, 2, cs, '/')
+# 
+# plot.bar(m, 'binomial', rainbow(6))
+# 
+# m = t(as.matrix(dfSingleCellPred.lda)); m = m+0.001
+# cs = colSums(m)
+# m = sweep(m, 2, cs, '/')
+# 
+# plot.bar(m, 'lda', rainbow(6))
 
 
