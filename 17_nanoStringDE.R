@@ -70,6 +70,14 @@ getAnovaPvalue = function(iIndex){
   return(anova(fit)$`Pr(>F)`)
 }
 
+getAdjustedData = function(iIndex){
+  x = mCounts[iIndex,]
+  df = data.frame(x, fGroups, pat=fPat)
+  fit = lmerTest::lmer(x ~ fGroups + (1 | pat), data=df)
+  return(predict(fit, re.form=NA))
+}
+
+
 lPvals = mclapply(1:nrow(mCounts), function(iIndexSub) {
   tryCatch(getAnovaPvalue(iIndexSub), error=function(e) NULL)
 })
@@ -78,11 +86,17 @@ names(lPvals) = rownames(mCounts)
 ivPvals = unlist(lPvals)
 ivPvals.adj = p.adjust(ivPvals, 'bonf')
 summary(ivPvals.adj); hist(ivPvals.adj)
+
+## get the population level adjusted data
+lAdjusted = mclapply(names(ivPvals.adj), getAdjustedData)
+names(lAdjusted) = names(ivPvals.adj)
+mCounts.adj = do.call(rbind, lAdjusted)
+
 # use the top genes to cluster that samples
 fTop = ivPvals.adj < 1e-2
 table(fTop)
 
-oDiag = CDiagnosticPlots(mCounts[fTop,], 'Top 102')
+oDiag = CDiagnosticPlots(mCounts.adj[fTop,], 'Top 102')
 l = CDiagnosticPlotsGetParameters(oDiag)
 # don't centre and scale subjects, but do it in variable space only
 l$PCA.scaleSubjects=F; l$HC.scaleSubjects = F;
@@ -94,10 +108,21 @@ plot.sigma.summary(oDiag, fGroups)
 plot.missing.summary(oDiag, fGroups)
 
 plot.PCA(oDiag, fGroups)
-plot.PCA(oDiag.norm, fBatch.2)
-#plot.PCA(oDiag.raw, fBatch.2)
 
-plot.dendogram(oDiag.norm, fBatch, labels_cex = 0.8, cex.main=0.8)
-plot.dendogram(oDiag.norm, fBatch.2, labels_cex = 0.8, cex.main=0.8)
-#plot.dendogram(oDiag.raw, fBatch, labels_cex = 0.8, cex.main=0.8)
+plot.dendogram(oDiag, fGroups, labels_cex = 0.8, cex.main=0.8)
 
+############### using all genes
+oDiag = CDiagnosticPlots(mCounts.adj, 'all 328')
+l = CDiagnosticPlotsGetParameters(oDiag)
+# don't centre and scale subjects, but do it in variable space only
+l$PCA.scaleSubjects=F; l$HC.scaleSubjects = F;
+oDiag = CDiagnosticPlotsSetParameters(oDiag, l)
+
+boxplot.median.summary(oDiag, fGroups, legend.pos = 'topright')
+plot.mean.summary(oDiag, fGroups)
+plot.sigma.summary(oDiag, fGroups)
+plot.missing.summary(oDiag, fGroups)
+
+plot.PCA(oDiag, fGroups)
+
+plot.dendogram(oDiag, fGroups, labels_cex = 0.8, cex.main=0.8)
