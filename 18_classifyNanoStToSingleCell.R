@@ -96,6 +96,122 @@ head(apply(mCounts.test, 2, var))
 mCounts.test = mCounts.test[,colnames(mCounts)]
 dim(mCounts.test)
 
+##################### try with CCrossvalidation library
+if(!require(downloader) || !require(methods)) stop('Library downloader and methods required')
+
+url = 'https://raw.githubusercontent.com/uhkniazi/CCrossValidation/master/CCrossValidation.R'
+download(url, 'CCrossValidation.R')
+
+# load the required packages
+source('CCrossValidation.R')
+# delete the file after source
+unlink('CCrossValidation.R')
+
+## setup the data frames
+dfData = data.frame(mCounts)
+## add the cell type id
+fCellID = lNanoString$metaData$fCellID
+
+## create test vector
+set.seed(123)
+test = sample(1:nrow(dfData), size = 4, replace = F)
+table(fCellID[test])
+
+## perform nested random forest on test set
+## adjust boot.num as desired
+oVar.r = CVariableSelection.RandomForest(dfData, fCellID, boot.num = 100)
+# plot the top 20 genes based on importance scort with 95% confidence interval for standard error
+plot.var.selection(oVar.r)
+# get the variables
+dfRF = CVariableSelection.RandomForest.getVariables(oVar.r)
+# select the top 30 variables
+cvTopGenes = rownames(dfRF)[1:60]
+cvTopGenes = gsub('X', '', cvTopGenes)
+mCounts = mCounts[,cvTopGenes]
+dim(mCounts)
+
+## remove correlated variables first
+## find correlated variables
+mCor = cor(mCounts, use="na.or.complete")
+library(caret)
+### find the columns that are correlated and should be removed
+n = findCorrelation((mCor), cutoff = 0.8, names=T)
+i = which(colnames(mCounts) %in% n)
+cvTopGenes = colnames(mCounts)[-i]
+
+mCounts = mCounts[,cvTopGenes]
+rm(mCor)
+gc()
+
+# use the top genes to find top combinations of genes
+## setup the data frames
+dfData = data.frame(mCounts)
+## add the cell type id
+fCellID = lNanoString$metaData$fCellID
+dim(dfData)
+oVar.sub = CVariableSelection.ReduceModel(dfData, fCellID, boot.num = 100)
+
+# plot the number of variables vs average error rate
+plot.var.selection(oVar.sub)
+
+## k fold nested cross validation with various variable combinations
+par(mfrow=c(2,2))
+
+cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, 1)
+oCV = CCrossValidation.LDA(test.dat = data.frame(gene=dfData[test, cvTopGenes.sub]),
+                           train.dat = data.frame(gene=dfData[, cvTopGenes.sub]),
+                           test.groups = fCellID[test],
+                           train.groups = fCellID, 
+                           level.predict = 'GC-PB', boot.num = 5, k.fold = 3)
+plot.cv.performance(oCV)
+
+# try models of various sizes with CV
+for (i in 2:4){
+  cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)
+  dfData.train = dfData[, cvTopGenes.sub]
+  
+  dfData.test = dfData[test, cvTopGenes.sub]
+  
+  oCV = CCrossValidation.LDA(test.dat = dfData.test, train.dat = dfData.train, 
+                             test.groups = fCellID[test],
+                             train.groups = fCellID, 
+                             level.predict = 'GC-PB', boot.num = 5, k.fold = 3)
+  
+  plot.cv.performance(oCV)
+  # print variable names and 95% confidence interval for AUC
+  x = getAUCVector(oCV)
+  print(paste('Variable Count', i))
+  print(signif(quantile(x, probs = c(0.025, 0.975)), 2))
+}
+
+#### use a 3 variable model
+dfData = data.frame(mCounts)
+## add the cell type id
+
+cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, 3)
+dfData = dfData[,cvTopGenes.sub]
+dfData$fCellID = lNanoString$metaData$fCellID
+dim(dfData)
+
+fit.lda = lda(fCellID ~ ., data=dfData)
+plot(fit.lda)
+
+# prediction error on training data
+p = predict(fit.lda)
+
+dfPred.train.lda = data.frame(round(p$posterior, 3), actual=dfData$fCellID)
+
+### predict on the new data from single cells
+dfData.new = data.frame(mCounts.test)
+dfData.new = dfData.new[,cvTopGenes.sub]
+dim(dfData.new)
+
+p = predict(fit.lda, newdata = dfData.new)
+
+dfSingleCellPred.lda = data.frame(p$posterior)
+
+
+
 ##################################### knn based approach
 library(class)
 
@@ -521,7 +637,7 @@ plot.bar = function(mBar, title='', cols, ylab='Predicted Probability of Cell Ty
 
 ## make an overlay barplot
 n = rainbow(2)
-m = t(as.matrix(dfSingleCellPred)); m = m+0.001
+m = t(as.matrix(dfSingleCellPred.lda)); m = m+0.001
 plot.bar(t(as.matrix(m[1,])), 'Classification of single cells', cols = n[1])
 barplot(m[2,], col = n[2], yaxt='n', xaxt='n', add=T)
 barplot(m[3,], col = n[3], yaxt='n', xaxt='n', add=T)
