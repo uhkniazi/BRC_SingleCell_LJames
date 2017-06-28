@@ -358,25 +358,6 @@ n = rainbow(2)
 m = t(as.matrix(dfSingleCellPred.bin)); m = m+0.001
 plot.bar(t(as.matrix(m[1,])), 'Classification of single cells - bin 2 var', cols = n[1])
 barplot(m[2,], col = n[2], yaxt='n', xaxt='n', add=T)
-barplot(m[3,], col = n[3], yaxt='n', xaxt='n', add=T)
-barplot(m[4,], col = n[4], yaxt='n', xaxt='n', add=T)
-barplot(m[5,], col = n[5], yaxt='n', xaxt='n', add=T)
-barplot(m[6,], col = n[6], yaxt='n', xaxt='n', add=T)
-legend('topright', legend = rownames(m), fill = n, cex = 0.7)
-
-## drop the cells where maximum prediction is not greater than 50%
-m = as.matrix(dfSingleCellPred)
-f = apply(m, 1, function(x) any(x >= 0.8))
-m = m[f,]
-m = t(m)
-
-n = rainbow(6)
-plot.bar(t(as.matrix(m[1,])), 'Classification of single cells at 80% cutoff', cols = n[1])
-barplot(m[2,], col = n[2], yaxt='n', xaxt='n', add=T)
-barplot(m[3,], col = n[3], yaxt='n', xaxt='n', add=T)
-barplot(m[4,], col = n[4], yaxt='n', xaxt='n', add=T)
-barplot(m[5,], col = n[5], yaxt='n', xaxt='n', add=T)
-barplot(m[6,], col = n[6], yaxt='n', xaxt='n', add=T)
 legend('topright', legend = rownames(m), fill = n, cex = 0.7)
 
 ## classify the cells proportions
@@ -386,21 +367,6 @@ f = apply(m, 1, which.max)
 #f[!f2] = '7'
 ## convert to factor
 fCellTypes = factor(f, labels = c(colnames(m)))
-f = table(fCellTypes)
-f = table(fCellTypes[!(fCellTypes %in% c('unclassified'))])
-
-# par(mfrow=c(2,1))
-# 
-# m = t(as.matrix(dfSingleCellPred)); m = m+0.001
-# cs = colSums(m)
-# m = sweep(m, 2, cs, '/')
-# 
-# plot.bar(m, 'binomial', rainbow(6))
-# 
-# m = t(as.matrix(dfSingleCellPred.lda)); m = m+0.001
-# cs = colSums(m)
-# m = sweep(m, 2, cs, '/')
-# 
-# plot.bar(m, 'lda', rainbow(6))
+table(fCellTypes)
 
 
