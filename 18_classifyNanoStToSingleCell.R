@@ -53,10 +53,10 @@ dim(mC)
 mC = t(mC)
 hist(colSums(mC))
 f = rowSums(mC)
-table(f > 45)
+table(f > 40)
 # FALSE  TRUE 
-# 8164   166
-mCounts.SC = mCounts.SC[f > 45,]
+# 8164   238
+mCounts.SC = mCounts.SC[f > 40,]
 dim(mCounts.SC)
 
 # load the nano string count matrix
@@ -81,7 +81,7 @@ dfSymbols = na.omit(dfSymbols)
 table(dfSymbols$ENTREZID %in% rownames(mCounts.SC))
 # 
 # FALSE  TRUE 
-# 92     7 
+# 87     12 
 dfSymbols = dfSymbols[(dfSymbols$ENTREZID %in% rownames(mCounts.SC)),]
 # match these symbols with nanostring data
 i = match(dfSymbols$SYMBOL, rownames(mCounts.norm))
@@ -140,23 +140,23 @@ plot.var.selection(oVar.r)
 # get the variables
 dfRF = CVariableSelection.RandomForest.getVariables(oVar.r)
 # select the top  variables
-cvTopGenes = rownames(dfRF)[1:6]
+cvTopGenes = rownames(dfRF)[1:11]
 cvTopGenes = gsub('X', '', cvTopGenes)
 mCounts = mCounts[,cvTopGenes]
 dim(mCounts)
 
-## remove correlated variables first
-## find correlated variables
-mCor = cor(mCounts, use="na.or.complete")
-library(caret)
-### find the columns that are correlated and should be removed
-n = findCorrelation((mCor), cutoff = 0.9, names=T)
-i = which(colnames(mCounts) %in% n)
-cvTopGenes = colnames(mCounts)[-i]
-
-mCounts = mCounts[,cvTopGenes]
-rm(mCor)
-gc()
+# ## remove correlated variables first
+# ## find correlated variables
+# mCor = cor(mCounts, use="na.or.complete")
+# library(caret)
+# ### find the columns that are correlated and should be removed
+# n = findCorrelation((mCor), cutoff = 0.9, names=T)
+# i = which(colnames(mCounts) %in% n)
+# cvTopGenes = colnames(mCounts)[-i]
+# 
+# mCounts = mCounts[,cvTopGenes]
+# rm(mCor)
+# gc()
 
 # use the top genes to find top combinations of genes
 ## setup the data frames
@@ -199,7 +199,7 @@ for (i in 2:4){
   print(signif(quantile(x, probs = c(0.025, 0.975)), 2))
 }
 
-#### use a 2 variable model
+#### use a 3 variable model
 dfData = data.frame(mCounts)
 ## add the cell type id
 
@@ -226,43 +226,67 @@ p = predict(fit.lda, newdata = dfData.new)
 dfSingleCellPred.lda = data.frame(p$posterior)
 
 ####################### how does the PCA look like with this 
-library(downloader)
-url = 'https://raw.githubusercontent.com/uhkniazi/CDiagnosticPlots/master/CDiagnosticPlots.R'
-download(url, 'CDiagnosticPlots.R')
+# library(downloader)
+# url = 'https://raw.githubusercontent.com/uhkniazi/CDiagnosticPlots/master/CDiagnosticPlots.R'
+# download(url, 'CDiagnosticPlots.R')
+# 
+# # load the required packages
+# source('CDiagnosticPlots.R')
+# # delete the file after source
+# unlink('CDiagnosticPlots.R')
 
-# load the required packages
-source('CDiagnosticPlots.R')
-# delete the file after source
-unlink('CDiagnosticPlots.R')
-
+## single cell data
 c = gsub('X', '', cvTopGenes.sub)
 mC = mCounts.SC[c,]
-mC = mC + (0 - min(mC))
+#mC = t(mCounts.test[,c])
+#mC = mC + (0 - min(mC))
 m = as.matrix(dfSingleCellPred.lda)
 f = apply(m, 1, which.max)
 fGroups = factor(f, labels=colnames(m))
 
-oDiag = CDiagnosticPlots(mC, 'Top 3 Variables')
-l = CDiagnosticPlotsGetParameters(oDiag)
-# don't centre and scale subjects, but do it in variable space only
-l$PCA.scaleSubjects=F; l$HC.scaleSubjects = F;
-l$PCA.scaleVariables = T; l$HC.scaleVaribles = T;
-oDiag = CDiagnosticPlotsSetParameters(oDiag, l)
+pr.out = prcomp(t(mC), scale = F)
+col.p = rainbow(nlevels(fGroups))
+col = col.p[as.numeric(fGroups)]
+plot(pr.out$x[,1:2], col=col, pch=20, xlab='Z1', ylab='Z2',
+     main=paste('PCA comp 1 and 2', ' SC'))
+csLabels = colnames(mC)
+text(pr.out$x[,1:2], labels = csLabels, pos = 1, cex=0.6)
 
-boxplot.median.summary(oDiag, fGroups, legend.pos = 'topright')
-plot.mean.summary(oDiag, fGroups)
-plot.sigma.summary(oDiag, fGroups)
-plot.missing.summary(oDiag, fGroups)
+## make dendogram
+hc = hclust(dist(t(mC)))
+library(dendextend)
+dend = as.dendrogram(hc)
+# Assigning the labels of dendrogram object with new colors:
+labels_colors(dend) = col.p[as.numeric(fGroups)][order.dendrogram(dend)]
+labels_cex(dend) = 0.8
+# Plotting the new dendrogram
+plot(dend, main=paste('Hierarchical clustering of distance matrix for', ' SC'), xlab='', sub='Coloured on Batch')
 
-plot.PCA(oDiag, fGroups)
+apply(mC, 1, function(x) boxplot(x ~ fGroups, add=F))
 
-plot.dendogram(oDiag, fGroups, labels_cex = 0.8, cex.main=0.8)
+#### repeat the sampe clustering plots in bulk data
+c = gsub('X', '', cvTopGenes.sub)
+mC = t(mCounts[,c])
+fGroups = lNanoString$metaData$fCellID
 
+pr.out = prcomp(t(mC), scale = F)
+col.p = rainbow(nlevels(fGroups))
+col = col.p[as.numeric(fGroups)]
+plot(pr.out$x[,1:2], col=col, pch=20, xlab='Z1', ylab='Z2',
+     main=paste('PCA comp 1 and 2', ' NanoString'))
+csLabels = colnames(mC)
+text(pr.out$x[,1:2], labels = csLabels, pos = 1, cex=0.6)
 
+## make dendogram
+hc = hclust(dist(t(mC)))
+dend = as.dendrogram(hc)
+# Assigning the labels of dendrogram object with new colors:
+labels_colors(dend) = col.p[as.numeric(fGroups)][order.dendrogram(dend)]
+labels_cex(dend) = 0.8
+# Plotting the new dendrogram
+plot(dend, main=paste('Hierarchical clustering of distance matrix for', ' NanoString'), xlab='', sub='Coloured on Batch')
 
-
-
-
+apply(mC, 1, function(x) boxplot(x ~ fGroups, add=F))
 
 ############### follow the regression based approach
 ########## perform binomial regression on each category 
