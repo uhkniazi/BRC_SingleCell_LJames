@@ -47,6 +47,18 @@ load('Results/topSelected.rds')
 # load the single cell normalised count matrix
 mCounts.SC = exprs(oSce.F)
 
+## select genes with expression of at least 1 in 80% of the samples
+mC = apply(mCounts.SC, 1, function(x) x > 0)
+dim(mC)
+mC = t(mC)
+hist(colSums(mC))
+f = rowSums(mC)
+table(f > 45)
+# FALSE  TRUE 
+# 8164   166
+mCounts.SC = mCounts.SC[f > 45,]
+dim(mCounts.SC)
+
 # load the nano string count matrix
 names(lNanoString)
 lNanoString$desc
@@ -69,7 +81,7 @@ dfSymbols = na.omit(dfSymbols)
 table(dfSymbols$ENTREZID %in% rownames(mCounts.SC))
 # 
 # FALSE  TRUE 
-# 12     87 
+# 92     7 
 dfSymbols = dfSymbols[(dfSymbols$ENTREZID %in% rownames(mCounts.SC)),]
 # match these symbols with nanostring data
 i = match(dfSymbols$SYMBOL, rownames(mCounts.norm))
@@ -127,8 +139,8 @@ oVar.r = CVariableSelection.RandomForest(dfData, fCellID, boot.num = 100)
 plot.var.selection(oVar.r)
 # get the variables
 dfRF = CVariableSelection.RandomForest.getVariables(oVar.r)
-# select the top 30 variables
-cvTopGenes = rownames(dfRF)[1:60]
+# select the top  variables
+cvTopGenes = rownames(dfRF)[1:6]
 cvTopGenes = gsub('X', '', cvTopGenes)
 mCounts = mCounts[,cvTopGenes]
 dim(mCounts)
@@ -138,7 +150,7 @@ dim(mCounts)
 mCor = cor(mCounts, use="na.or.complete")
 library(caret)
 ### find the columns that are correlated and should be removed
-n = findCorrelation((mCor), cutoff = 0.8, names=T)
+n = findCorrelation((mCor), cutoff = 0.9, names=T)
 i = which(colnames(mCounts) %in% n)
 cvTopGenes = colnames(mCounts)[-i]
 
@@ -173,10 +185,10 @@ for (i in 2:4){
   cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, i)
   dfData.train = dfData[, cvTopGenes.sub]
   
-  dfData.test = dfData[test, cvTopGenes.sub]
+  dfData.test = dfData[, cvTopGenes.sub]
   
   oCV = CCrossValidation.LDA(test.dat = dfData.test, train.dat = dfData.train, 
-                             test.groups = fCellID[test],
+                             test.groups = fCellID,
                              train.groups = fCellID, 
                              level.predict = 'GC-PB', boot.num = 5, k.fold = 3)
   
@@ -191,7 +203,7 @@ for (i in 2:4){
 dfData = data.frame(mCounts)
 ## add the cell type id
 
-cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, 2)
+cvTopGenes.sub = CVariableSelection.ReduceModel.getMinModel(oVar.sub, 3)
 dfData = dfData[,cvTopGenes.sub]
 dfData$fCellID = lNanoString$metaData$fCellID
 dim(dfData)
@@ -212,6 +224,42 @@ dim(dfData.new)
 p = predict(fit.lda, newdata = dfData.new)
 
 dfSingleCellPred.lda = data.frame(p$posterior)
+
+####################### how does the PCA look like with this 
+library(downloader)
+url = 'https://raw.githubusercontent.com/uhkniazi/CDiagnosticPlots/master/CDiagnosticPlots.R'
+download(url, 'CDiagnosticPlots.R')
+
+# load the required packages
+source('CDiagnosticPlots.R')
+# delete the file after source
+unlink('CDiagnosticPlots.R')
+
+c = gsub('X', '', cvTopGenes.sub)
+mC = mCounts.SC[c,]
+mC = mC + (0 - min(mC))
+m = as.matrix(dfSingleCellPred.lda)
+f = apply(m, 1, which.max)
+fGroups = factor(f, labels=colnames(m))
+
+oDiag = CDiagnosticPlots(mC, 'Top 3 Variables')
+l = CDiagnosticPlotsGetParameters(oDiag)
+# don't centre and scale subjects, but do it in variable space only
+l$PCA.scaleSubjects=F; l$HC.scaleSubjects = F;
+l$PCA.scaleVariables = T; l$HC.scaleVaribles = T;
+oDiag = CDiagnosticPlotsSetParameters(oDiag, l)
+
+boxplot.median.summary(oDiag, fGroups, legend.pos = 'topright')
+plot.mean.summary(oDiag, fGroups)
+plot.sigma.summary(oDiag, fGroups)
+plot.missing.summary(oDiag, fGroups)
+
+plot.PCA(oDiag, fGroups)
+
+plot.dendogram(oDiag, fGroups, labels_cex = 0.8, cex.main=0.8)
+
+
+
 
 
 
