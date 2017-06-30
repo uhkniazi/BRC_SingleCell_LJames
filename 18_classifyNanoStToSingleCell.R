@@ -251,7 +251,7 @@ plot(pr.out$x[,1:2], col=col, pch=20, xlab='Z1', ylab='Z2',
      main=paste('PCA comp 1 and 2', ' SC'))
 csLabels = colnames(mC)
 text(pr.out$x[,1:2], labels = csLabels, pos = 1, cex=0.6)
-
+legend('topright', legend = levels(fGroups), fill=col.p)
 ## make dendogram
 hc = hclust(dist(t(mC)))
 library(dendextend)
@@ -260,7 +260,7 @@ dend = as.dendrogram(hc)
 labels_colors(dend) = col.p[as.numeric(fGroups)][order.dendrogram(dend)]
 labels_cex(dend) = 0.8
 # Plotting the new dendrogram
-plot(dend, main=paste('Hierarchical clustering of distance matrix for', ' SC'), xlab='', sub='Coloured on Batch')
+plot(dend, main=paste('Hierarchical clustering of distance matrix for', ' SC'), xlab='', sub='Coloured on Predicted Grouping')
 
 apply(mC, 1, function(x) boxplot(x ~ fGroups, add=F))
 
@@ -276,7 +276,7 @@ plot(pr.out$x[,1:2], col=col, pch=20, xlab='Z1', ylab='Z2',
      main=paste('PCA comp 1 and 2', ' NanoString'))
 csLabels = colnames(mC)
 text(pr.out$x[,1:2], labels = csLabels, pos = 1, cex=0.6)
-
+legend('topright', legend = levels(fGroups), fill=col.p)
 ## make dendogram
 hc = hclust(dist(t(mC)))
 dend = as.dendrogram(hc)
@@ -284,7 +284,7 @@ dend = as.dendrogram(hc)
 labels_colors(dend) = col.p[as.numeric(fGroups)][order.dendrogram(dend)]
 labels_cex(dend) = 0.8
 # Plotting the new dendrogram
-plot(dend, main=paste('Hierarchical clustering of distance matrix for', ' NanoString'), xlab='', sub='Coloured on Batch')
+plot(dend, main=paste('Hierarchical clustering of distance matrix for', ' NanoString'), xlab='', sub='Coloured on Groupings')
 
 apply(mC, 1, function(x) boxplot(x ~ fGroups, add=F))
 
