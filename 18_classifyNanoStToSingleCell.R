@@ -244,6 +244,21 @@ m = as.matrix(dfSingleCellPred.lda)
 f = apply(m, 1, which.max)
 fGroups = factor(f, labels=colnames(m))
 
+dfSingleCellPred.lda$groups = fGroups
+## save this prediction to the database
+## sample ids from the database
+# ids = oSce.F$dbID_Sample
+# names(ids) = rownames(pData(oSce.F))
+# identical(rownames(dfSingleCellPred.lda), names(ids))
+# 
+# db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# dbListTables(db)
+# 
+# q = paste0('UPDATE Sample SET group3=\'', dfSingleCellPred.lda$groups,'\' WHERE Sample.id =', ids)
+# 
+# temp = sapply(q, function(x) dbGetQuery(db, x))
+# dbDisconnect(db)
+
 pr.out = prcomp(t(mC), scale = F)
 col.p = rainbow(nlevels(fGroups))
 col = col.p[as.numeric(fGroups)]
