@@ -133,7 +133,23 @@ cvSeqs = sapply(lSeqs, function(x){
 })
 
 dfSample$Sequences = cvSeqs
-write.csv(dfSample, file='Results/Receptor_summary_imtg.csv')
+
+## new section added for the assigned cell classes based on 
+## script 18_classifyNanoStToSingleCell.R
+##### connect to mysql database to get samples
+db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
+# get the query
+q = paste0('select Sample.id, Sample.group3 from Sample
+           where Sample.id=', dfSample$id)
+dfSample.db = lapply(q, function(x) dbGetQuery(db, x))
+dfSample.db = do.call(rbind, dfSample.db)
+# close connection after getting data
+dbDisconnect(db)
+identical(dfSample$id, dfSample.db$id)
+dfSample$group3 = dfSample.db$group3
+
+n = paste0('Results/Receptor_summary_imgt', make.names(date()), '.csv')
+write.csv(dfSample, file=n)
 
 ### make a pca plot with the scater object and only for cells with 
 ### classes defined
