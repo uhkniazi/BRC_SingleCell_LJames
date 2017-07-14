@@ -115,6 +115,9 @@ plot.PCA(oDiag, fGroups)
 
 plot.dendogram(oDiag, fGroups, labels_cex = 0.8, cex.main=0.8)
 
+oDiag2 = CDiagnosticPlots(mCounts[fTop,], 'Top 58 at 1% FDR')
+plot.heatmap(oDiag2, main='Top 58 at 1% FDR')
+
 #### use these genes to cluster the single cell data
 ####### load single cell data
 db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', host='127.0.0.1')
@@ -178,4 +181,5 @@ labels_cex(dend) = 0.8
 # Plotting the new dendrogram
 plot(dend, main=paste('Hierarchical clustering of distance matrix for', ' SC'), xlab='', sub='Coloured on Batch')
 
-
+oDiag.sc = CDiagnosticPlots(mC, 'Single Cell Data')
+plot.heatmap(oDiag.sc, main='Single Cell Data')

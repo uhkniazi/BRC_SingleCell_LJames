@@ -279,6 +279,16 @@ plot(dend, main=paste('Hierarchical clustering of distance matrix for', ' SC'), 
 
 apply(mC, 1, function(x) boxplot(x ~ fGroups, add=F))
 
+url = 'https://raw.githubusercontent.com/uhkniazi/CDiagnosticPlots/master/CDiagnosticPlots.R'
+download(url, 'CDiagnosticPlots.R')
+
+# load the required packages
+source('CDiagnosticPlots.R')
+# delete the file after source
+unlink('CDiagnosticPlots.R')
+
+oDiag.sc = CDiagnosticPlots(mC, 'Single Cell 3 Genes')
+plot.heatmap(oDiag.sc, main='3 Genes from Single Cell')
 #### repeat the sampe clustering plots in bulk data
 c = gsub('X', '', cvTopGenes.sub)
 mC = t(mCounts[,c])
@@ -302,6 +312,9 @@ labels_cex(dend) = 0.8
 plot(dend, main=paste('Hierarchical clustering of distance matrix for', ' NanoString'), xlab='', sub='Coloured on Groupings')
 
 apply(mC, 1, function(x) boxplot(x ~ fGroups, add=F))
+
+oDiag.nano = CDiagnosticPlots(mC, 'NanoString 3 Genes')
+plot.heatmap(oDiag.nano, main='3 Genes from NanoString')
 
 ############### follow the regression based approach
 ########## perform binomial regression on each category 
