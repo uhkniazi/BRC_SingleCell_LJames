@@ -56,10 +56,10 @@ dim(oSce.F)
 # For each gene, we calculate the percentage of the variance of the
 # expression values that is explained by the spike-in totals
 plotExplanatoryVariables(oSce.F, variables=c("counts_feature_controls_ERCC",
-                                          "log10_counts_feature_controls_ERCC"))
+                                          "log10_counts_feature_controls_ERCC", 'group1', 'Phase'))
 #
 ## calculate technical variability using all genes
-var.fit = trendVar(oSce.F, trend="loess", use.spikes=FALSE, span=0.2)
+var.fit = trendVar(oSce.F, trend="loess", use.spikes=FALSE, span=0.2, design=model.matrix(~oSce.F$Phase + oSce.F$group1))
 var.out = decomposeVar(oSce.F, var.fit)
 #
 ## trend fitted to the endogenous variances by examining whether it is consistent with the spike-in variances
@@ -74,7 +74,7 @@ points(var.out$mean[cur.spike], var.out$total[cur.spike], col="red", pch=16)
 # with the spike-in transcripts used as diagnostic features rather than in the trend fitting
 # itself. However, if our assumption did not hold, we would instead fit the trend directly to the spike-in
 # variances with the default use.spikes=TRUE.
-var.fit = trendVar(oSce.F, trend="loess", use.spikes=TRUE, span=0.2)
+var.fit = trendVar(oSce.F, trend="loess", use.spikes=TRUE, span=0.2, design=model.matrix(~oSce.F$Phase + oSce.F$group1))
 var.out = decomposeVar(oSce.F, var.fit)
 #
 ## trend fitted to the endogenous variances by examining whether it is consistent with the spike-in variances
@@ -92,9 +92,12 @@ hvg.out <- var.out[which(var.out$FDR <= 0.05 & var.out$bio >= 0.5),]
 hvg.out <- hvg.out[order(hvg.out$bio, decreasing=TRUE),]
 nrow(hvg.out)
 #
-## [1] 245
+## [1] 224
+library(org.Hs.eg.db)
+df = AnnotationDbi::select(org.Hs.eg.db, keys = rownames(hvg.out), keytype = 'ENTREZID', columns = c('SYMBOL', 'GENENAME'))
+hvg.out = cbind(hvg.out, df)
 
-write.csv(hvg.out, file="Results/hvg.csv")
+write.csv(hvg.out, file="Results/hvg.csv", row.names = F)
 head(hvg.out)
 
 plotExpression(oSce.F, rownames(hvg.out)[1:10])
